@@ -86,25 +86,29 @@ Declared in [arch/x86/include/asm/pgtable_types.h][17].
 ---|---------|---------|---------|---------|---------|----------
 3210987654321098765432109876543210987654321098765432109876543210
 ||||||                                              ||||||||||||
-||||||                                              ||||||||||||- _PAGE_PRESENT   - Present
-||||||                                              |||||||||||-- _PAGE_RW        - Writable
-||||||                                              ||||||||||--- _PAGE_USER      - User accessible
-||||||                                              |||||||||---- _PAGE_PWT       - Page write-through
-||||||                                              ||||||||----- _PAGE_PCD       - Page cache disabled
-||||||                                              |||||||------ _PAGE_ACCESSED  - Was accessed
-||||||                                              ||||||------- _PAGE_DIRTY     - Was written to
-||||||                                              |||||-------- _PAGE_PSE       - Is huge
-||||||                                              ||||--------- _PAGE_GLOBAL    - TLB not cleared on TLB flush
-||||||                                              |||---------- _PAGE_SOFTW1    - User-definable
-||||||                                              ||----------- _PAGE_SOFTW2    - User-definable
-||||||                                              |------------ _PAGE_SOFTW3    - User-definable
-||||||----------------------------------------------------------- _PAGE_SOFTW4    - User-definable
-|||||------------------------------------------------------------ _PAGE_PKEY_BIT0 - Intel memory protection key bits
-||||------------------------------------------------------------- _PAGE_PKEY_BIT1 - Intel memory protection key bits
-|||-------------------------------------------------------------- _PAGE_PKEY_BIT2 - Intel memory protection key bits
-||--------------------------------------------------------------- _PAGE_PKEY_BIT3 - Intel memory protection key bits
-|---------------------------------------------------------------- _PAGE_NX        - No execute
+||||||                                              ||||||||||||- _PAGE_PRESENT    - Present
+||||||                                              |||||||||||-- _PAGE_RW         - Writable
+||||||                                              ||||||||||--- _PAGE_USER       - User accessible
+||||||                                              |||||||||---- _PAGE_PWT        - Page write-through
+||||||                                              ||||||||----- _PAGE_PCD        - Page cache disabled
+||||||                                              |||||||------ _PAGE_ACCESSED   - Was accessed
+||||||                                              ||||||------- _PAGE_DIRTY      - Was written to
+||||||                                              |||||-------- _PAGE_PSE        - Is huge
+||||||                                              ||||--------- _PAGE_GLOBAL     - TLB not cleared on TLB flush
+||||||                                              |||---------- _PAGE_SPECIAL    - Page marked 'special' *
+||||||                                              ||----------- _PAGE_UFFD_WP    - userfaultfd write-protected *
+||||||                                              |------------ _PAGE_SOFT_DIRTY - Software-tracked dirty bit *
+||||||----------------------------------------------------------- _PAGE_DEVMAP     - User-definable *
+|||||------------------------------------------------------------ _PAGE_PKEY_BIT0  - Intel memory protection key bits
+||||------------------------------------------------------------- _PAGE_PKEY_BIT1  - Intel memory protection key bits
+|||-------------------------------------------------------------- _PAGE_PKEY_BIT2  - Intel memory protection key bits
+||--------------------------------------------------------------- _PAGE_PKEY_BIT3  - Intel memory protection key bits
+|---------------------------------------------------------------- _PAGE_NX         - No execute
 ```
+
+\* Each of these bits are actually software-defined bits as far as the CPU is
+concerned, however they are used this way by the kernel. `_PAGE_SPECIAL` also
+doubles up as `_PAGE_CPA_TEST`.
 
 ## Page size
 
