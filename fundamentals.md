@@ -10,24 +10,13 @@ struct via e.g. `typedef struct { pgdval_t pgd; } pgd_t`.
 
 ## Page table levels
 
-* PGD [pgd_t][1] - Page Global Directory - [PTRS_PER_PGD][6] (512) entries,
-  [PGDIR_SHIFT][13] (48 if 5-level enabled, 39 otherwise) offset into VA.
-
-* P4D [p4d_t][2] - Page 4 Directory - [PTRS_PER_P4D][7] entries (1 or 512) - the
-  number ofentries varies depending on whether 5-level enabled via
-  `CONFIG_X86_5LEVEL` and whether the hardware supports it, stored in the global
-  [ptrs_per_p4d][8] value and determined in [check_la57_support()][9] on
-  boot. Defaults to 1 if not enabled (and is not used in non-5-level mode),
-  [P4D_SHIFT][14] (39) offset into VA.
-
-* PUD [pud_t][3] - Page Upper Directory - [PTRS_PER_PUD][10] (512) entries,
-  [PUD_SHIFT][14] (30) offset into VA.
-
-* PMD [pmd_t][4] - Page Middle Directory - [PTRS_PER_PMD][11] (512) entries
-  (skipped if PUD level marked huge), [PMD_SHIFT][15] (21) offset into VA.
-
-* PTE [pte_t][5] - Page Table Entry directory - [PTRS_PER_PTE][12] (512) entries
-  (skipped if PUD/PMD level marked huge), [PAGE_SHIFT][16]offset into VA.
+| Level | Type | Count | Shift | Description |
+|-------|------|-------|-------|-------------|
+| PGD | [pgd_t][1] | [PTRS_PER_PGD][6] (512) | [PGDIR_SHIFT][13] (48 if 5-level enabled, 39 otherwise) | Page Global Directory |
+| P4D | [p4d_t][2] | [PTRS_PER_P4D][7] (512 if enabled, otherwise 1) | [P4D_SHIFT][14] (39) | Page 4 Directory - Number of entries depends on whether `CONFIG_X86_5LEVEL` is set (it's enabled) and whether the hardware supports it, stored in the global [ptrs_per_p4d][8] value and determined in [check_la57_support()][9] on boot. Defaults to 1 if not enabled (and is not used in non-5-level mode). |
+| PUD | [pud_t][3] | [PTRS_PER_PUD][10] (512) | [PUD_SHIFT][14] (30) | Page Upper Directory |
+| PMD | [pmd_t][4] | [PTRS_PER_PMD][11] (512) | [PMD_SHIFT][15] (21) | Page Middle Directory (skipped if PUD level marked huge) |
+| PTE | [pte_t][5] | [PTRS_PER_PTE][12] (512) | [PAGE_SHIFT][16] (12) | Page Table Entry directory (skipped if PUD/PMD level marked huge) |
 
 ## Virtual Address layout
 
