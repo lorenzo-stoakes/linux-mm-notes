@@ -13,10 +13,12 @@ struct via e.g. `typedef struct { pgdval_t pgd; } pgd_t`.
 | Level | Type | Count | Shift | Description |
 |-------|------|-------|-------|-------------|
 | PGD | [pgd_t][1] | [PTRS_PER_PGD][6] (512) | [PGDIR_SHIFT][13] (48 if 5-level enabled, 39 otherwise) | Page Global Directory |
-| P4D | [p4d_t][2] | [PTRS_PER_P4D][7] (512 if enabled, otherwise 1) | [P4D_SHIFT][14] (39) | Page 4 Directory - Number of entries depends on whether `CONFIG_X86_5LEVEL` is set (it's enabled) and whether the hardware supports it, stored in the global [ptrs_per_p4d][8] value and determined in [check_la57_support()][9] on boot. Defaults to 1 if not enabled (and is not used in non-5-level mode). |
+| P4D | [p4d_t][2] | [PTRS_PER_P4D][7] (512 or 1) | [P4D_SHIFT][14] (39) | Page 4 Directory\* |
 | PUD | [pud_t][3] | [PTRS_PER_PUD][10] (512) | [PUD_SHIFT][14] (30) | Page Upper Directory |
 | PMD | [pmd_t][4] | [PTRS_PER_PMD][11] (512) | [PMD_SHIFT][15] (21) | Page Middle Directory (skipped if PUD level marked huge) |
 | PTE | [pte_t][5] | [PTRS_PER_PTE][12] (512) | [PAGE_SHIFT][16] (12) | Page Table Entry directory (skipped if PUD/PMD level marked huge) |
+
+\* Number of entries depends on whether `CONFIG_X86_5LEVEL` is set (it's enabled) and whether the hardware supports it, stored in the global [ptrs_per_p4d][8] value and determined in [check_la57_support()][9] on boot. Defaults to 1 if not enabled (and is not used in non-5-level mode).
 
 ## Virtual Address layout
 
@@ -61,9 +63,9 @@ xxxxxxxxxxxxxxxx                    48 bits
 
 ## Available memory
 
-* In 4-level mode there are 512*1*512*512*512 = 68.7bn 4KiB pages = 256TiB of address space.
+* In 4-level mode there are `512 * 1 * 512 * 512 * 512` = 68.7bn 4KiB pages = __256TiB__ of address space.
 
-* In 5-level mode there are 512*512*512*512*512 = 35,184bn 4KiB pages = 128PiB of address space.
+* In 5-level mode there are `512 * 512 * 512 * 512 * 512` = 35,184bn 4KiB pages = __128PiB__ of address space.
 
 [0]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L14-L19
 [1]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_types.h#L285
