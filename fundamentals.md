@@ -106,7 +106,7 @@ Declared in [arch/x86/include/asm/pgtable_types.h][17].
 |---------------------------------------------------------------- _PAGE_NX        - No execute
 ```
 
-## Available memory
+## Available address space
 
 * In 4-level mode there are `512 * 1 * 512 * 512 * 512` = 68.7bn 4KiB pages = __256 TiB__ of address space.
 
