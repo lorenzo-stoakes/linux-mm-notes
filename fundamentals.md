@@ -8,6 +8,9 @@ Each page table entry is defined as an `unsigned long` (declared as
 Some makeshift type safety is enforced by wrapping each of these types in a
 struct via e.g. `typedef struct { pgdval_t pgd; } pgd_t`.
 
+The page table structures vary depending on whether [Intel 5-level paging][ref0]
+is enabled.
+
 ## Page table levels
 
 | Level | Type | Count | Shift | Description |
@@ -74,6 +77,34 @@ xxxxxxxxxxxxxxxx                    48 bits
                         |---------------------------------------- PGDIR_SHIFT (39)
 ```
 
+### Flags
+
+Declared in [arch/x86/include/asm/pgtable_types.h][17].
+
+```
+   6         5         4         3         2         1
+---|---------|---------|---------|---------|---------|----------
+3210987654321098765432109876543210987654321098765432109876543210
+||||||                                              ||||||||||||
+||||||                                              ||||||||||||- _PAGE_PRESENT   - Present
+||||||                                              |||||||||||-- _PAGE_RW        - Writable
+||||||                                              ||||||||||--- _PAGE_USER      - User accessible
+||||||                                              |||||||||---- _PAGE_PWT       - Page write-through
+||||||                                              ||||||||----- _PAGE_PCD       - Page cache disabled
+||||||                                              |||||||------ _PAGE_ACCESSED  - Was accessed
+||||||                                              ||||||------- _PAGE_DIRTY     - Was written to
+||||||                                              |||||-------- _PAGE_PSE       - Is huge
+||||||                                              ||||--------- _PAGE_GLOBAL    - TLB not cleared on TLB flush
+||||||                                              |||---------- _PAGE_SOFTW1    - User-definable
+||||||                                              ||----------- _PAGE_SOFTW2    - User-definable
+||||||                                              |------------ _PAGE_SOFTW3    - User-definable
+||||||----------------------------------------------------------- _PAGE_SOFTW4    - User-definable
+|||||------------------------------------------------------------ _PAGE_PKEY_BIT0 - Intel memory protection key bits
+||||------------------------------------------------------------- _PAGE_PKEY_BIT1 - Intel memory protection key bits
+|||-------------------------------------------------------------- _PAGE_PKEY_BIT2 - Intel memory protection key bits
+||--------------------------------------------------------------- _PAGE_PKEY_BIT3 - Intel memory protection key bits
+|---------------------------------------------------------------- _PAGE_NX        - No execute
+```
 
 ## Available memory
 
@@ -98,3 +129,6 @@ xxxxxxxxxxxxxxxx                    48 bits
 [14]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L61
 [15]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L90
 [16]:https://github.com/torvalds/linux/blob/c2e7554e1b85935d962127efa3c2a76483b0b3b6/arch/x86/include/asm/page_types.h#L10
+[17]:https://github.com/torvalds/linux/blob/2dcd0af568b0cf583645c8a317dd12e344b1c72a/arch/x86/include/asm/pgtable_types.h#L9-L28
+
+[ref0]:https://en.wikipedia.org/wiki/Intel_5-level_paging
