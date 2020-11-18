@@ -106,6 +106,20 @@ Declared in [arch/x86/include/asm/pgtable_types.h][17].
 |---------------------------------------------------------------- _PAGE_NX        - No execute
 ```
 
+## Page size
+
+* By default page size is equal to __4 KiB__ (12 bits of page offset), however x86-64
+  supports 1 GiB and 2 MiB page sizes.
+
+* __1 GiB__ pages are enabled by setting the `_PAGE_PSE` bit in the PUD
+  entry. This limits page table traversal to the PGD, P4D, PUD levels, leaving
+  `12 + 9 + 9 = 30` bits of page offset and thus 1 GiB available per-page.
+
+* __2 MiB__ pages are enabled by setting the `_PAGE_PSE` bit in the PMD
+  entry. This limits page table traversal to the PGD, P4D, PUD, PMD levels,
+  leaving `12 + 9 = 21` bits of page page offset and thus 2 MiB available
+  per-page.
+
 ## Available address space
 
 * In 4-level mode there are `512 * 1 * 512 * 512 * 512` = 68.7bn 4KiB pages = __256 TiB__ of address space.
