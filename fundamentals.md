@@ -11,7 +11,7 @@ struct via e.g. `typedef struct { pgdval_t pgd; } pgd_t`.
 The page table structures vary depending on whether [Intel 5-level paging][ref0]
 is enabled.
 
-## Page table levels
+### Page table levels
 
 | Level | Type | Count | Shift | Description |
 |-------|------|-------|-------|-------------|
@@ -31,7 +31,7 @@ P4D offset) if 5-level is not enabled.
 the PUD is marked huge (1 GiB page size), the PTE directory entry is skipped if
 the PMD is marked huge (2 MiB page size).
 
-## Virtual Address layout
+### Virtual Address layout
 
 Note that the bits from the MSB up to AND INCLUDING the first bit of the
 addressable range (57 bits for 5-level, 48 bits for 4-level) must all be set the
@@ -45,7 +45,7 @@ The valid address range is determined by [__VIRTUAL_MASK][24] and
 [__VIRTUAL_MASK_SHIFT][25] (56 for 5-level, 47 for 4-level, note that number of
 bits = shift + 1).
 
-### 5-level
+#### 5-level
 
 ```
 xxxxxxxx                       57 bits
@@ -66,7 +66,7 @@ xxxxxxxx                       57 bits
                |------------------------------------------------- PGDIR_SHIFT (48)
 ```
 
-### 4-level
+#### 4-level
 
 ```
 xxxxxxxxxxxxxxxxx                   48 bits
@@ -126,7 +126,7 @@ The hardware will set `_PAGE_ACCESSED` once the page is first accessed, and once
 set it remains set (sticky bit). It also sets `_PAGE_DIRTY` if data is written
 to the page (which we can later clear).
 
-## Page size
+### Page size
 
 * By default page size is equal to __4 KiB__ (12 bits of page offset), however x86-64
   supports 1 GiB and 2 MiB page sizes.
@@ -140,7 +140,7 @@ to the page (which we can later clear).
   leaving `12 + 9 = 21` bits of page page offset and thus 2 MiB available
   per-page.
 
-## Page table flag predicates
+### Page table flag predicates
 
 The predicates are declared in [arch/x86/include/asm/pgtable.h][18]
 
