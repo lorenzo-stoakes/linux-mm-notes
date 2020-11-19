@@ -207,21 +207,17 @@ regions is offset.
 
 ```
 Userland (128TiB)
-
                         0000000000000000 -> |---------------| ^
                                             |    Process    | |
                                             |    address    | | 128 TiB
                                             |     space     | |
                         0000800000000000 -> |---------------| v
-
-             .        ` .     -                 `-       ./   _
-                      _    .`   -   The netherworld of  `/   `
-            -     `  _        |  /      unavailable sign-extended -/ .
-             ` -        .   `  48-bit address space  -     \  /    -
-           \-                - . . . .             \      /       -
-
+                     .        ` .     -                 `-       ./   _
+                              _    .`   -   The netherworld of  `/   `
+                    -     `  _        |  /      unavailable sign-extended -/ .
+                     ` -        .   `  48-bit address space  -     \  /    -
+                   \-                - . . . .             \      /       -
 Kernel (128TiB)
-
                         ffff800000000000 -> |----------------| ^
                                             |   Hypervisor   | |
                                             |    reserved    | | 8 TiB
