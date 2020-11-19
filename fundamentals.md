@@ -206,7 +206,7 @@ regions is offset.
 ### 4-level
 
 ```
-Userland (128TiB)
+Userland (128 TiB)
                         0000000000000000 -> |---------------| ^
                                             |    Process    | |
                                             |    address    | | 128 TiB
@@ -217,7 +217,7 @@ Userland (128TiB)
                     -     `  _        |  /      unavailable sign-extended -/ .
                      ` -        .   `  48-bit address space  -     \  /    -
                    \-                - . . . .             \      /       -
-Kernel (128TiB)
+Kernel (128 TiB)
                         ffff800000000000 -> |----------------| ^
                                             |   Hypervisor   | |
                                             |    reserved    | | 8 TiB
@@ -305,7 +305,7 @@ Kernel (128TiB)
 ### 5-level
 
 ```
-Userland (128TiB)
+Userland (64 PiB)
                         0000000000000000 -> |---------------| ^
                                             |    Process    | |
                                             |    address    | | 64 PiB
@@ -316,7 +316,7 @@ Userland (128TiB)
                     -     `  _        |  /      unavailable sign-extended -/ .
                      ` -        .   `  57-bit address space  -     \  /    -
                    \-                - . . . .             \      /       -
-Kernel (128TiB)
+Kernel (64 PiB)
                         ff00000000000000 -> |----------------| ^
                                             |   Hypervisor   | |
                                             |    reserved    | | 4 PiB
