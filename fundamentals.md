@@ -11,7 +11,7 @@ struct via e.g. `typedef struct { pgdval_t pgd; } pgd_t`.
 The page table structures vary depending on whether [Intel 5-level paging][ref0]
 is enabled.
 
-### Page table levels
+### Levels
 
 | Level | Type | Count | Shift | Description |
 |-------|------|-------|-------|-------------|
@@ -31,7 +31,7 @@ P4D offset) if 5-level is not enabled.
 the PUD is marked huge (1 GiB page size), the PTE directory entry is skipped if
 the PMD is marked huge (2 MiB page size).
 
-### Virtual Address layout
+### Virtual address layout
 
 Note that the bits from the MSB up to AND INCLUDING the first bit of the
 addressable range (57 bits for 5-level, 48 bits for 4-level) must all be set the
