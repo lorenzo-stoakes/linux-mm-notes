@@ -86,7 +86,7 @@ Declared in [arch/x86/include/asm/pgtable_types.h][17].
 ---|---------|---------|---------|---------|---------|----------
 3210987654321098765432109876543210987654321098765432109876543210
 ||||||                                              ||||||||||||
-||||||                                              ||||||||||||- _PAGE_PRESENT    - Present
+||||||                                              ||||||||||||- _PAGE_PRESENT    - Present (i.e. available)
 ||||||                                              |||||||||||-- _PAGE_RW         - Writable
 ||||||                                              ||||||||||--- _PAGE_USER       - User accessible
 ||||||                                              |||||||||---- _PAGE_PWT        - Page write-through
@@ -110,6 +110,12 @@ Declared in [arch/x86/include/asm/pgtable_types.h][17].
 concerned, however they are used this way by the kernel. `_PAGE_SPECIAL` also
 doubles up as `_PAGE_CPA_TEST`.
 
+The flags for a page table entry are obtained via `pXX_flags()` declared in [pgtable_types.h][17].
+
+The hardware will set `_PAGE_ACCESSED` once the page is first accessed, and once
+set it remains set (sticky bit). It also sets `_PAGE_DIRTY` if data is written
+to the page (which we can later clear).
+
 ## Page size
 
 * By default page size is equal to __4 KiB__ (12 bits of page offset), however x86-64
@@ -123,6 +129,37 @@ doubles up as `_PAGE_CPA_TEST`.
   entry. This limits page table traversal to the PGD, P4D, PUD, PMD levels,
   leaving `12 + 9 = 21` bits of page page offset and thus 2 MiB available
   per-page.
+
+## Page table flag predicates
+
+The predicates are declared in [arch/x86/include/asm/pgtable.h][18]
+
+| Flag | G | 4 | U | M | T | Function |
+|------|---|---|---|---|---|----------|
+| _PAGE_PRESENT | x | x | x | x | x | `pXX_present()` |
+| _PAGE_RW |  |  | x | x | x | `pXX_write()` |
+| _PAGE_USER |  |  |  |  |  | N/A |
+| _PAGE_PWT |  |  |  |  |  | N/A |
+| _PAGE_PCD |  |  |  |  |  | N/A |
+| _PAGE_ACCESSED | | | x | x | x | `pXX_young()` |
+| _PAGE_DIRTY | | | x | x | x | `pXX_dirty()` |
+| _PAGE_PSE | | | x | x |  | `pXX_huge()` or `pXX_large()` \* |
+| _PAGE_GLOBAL | | | |  | x | `pte_global()` |
+| _PAGE_SPECIAL | | | |  | x | `pte_special()` |
+| _PAGE_UFFD_WP | | | | x | x | `pXX_uffd_wp()` |
+| _PAGE_SOFT_DIRTY | | | x | x | x | `pXX_soft_dirty()` |
+| _PAGE_DEVMAP | | | x | x | x | `pXX_devmap()` |
+| _PAGE_PKEY_BIT0 |  |  |  |  |  | N/A |
+| _PAGE_PKEY_BIT1 |  |  |  |  |  | N/A |
+| _PAGE_PKEY_BIT2 |  |  |  |  |  | N/A |
+| _PAGE_PKEY_BIT3 |  |  |  |  |  | N/A |
+| _PAGE_NX |  |  |  |  | x | `pte_exec()` |
+
+\* Note that [pud_huge][19] and [pmd_huge][20] are declared in
+`arch/x86/mm/hugetlbpage.h` and implemented in `hugetlbpage.c` and have
+hugetlb-specific semantics (present flag can't be set for PMD). The
+`pud_large()` predicate also asserts the page is present.
+
 
 ## Available address space
 
@@ -147,6 +184,9 @@ doubles up as `_PAGE_CPA_TEST`.
 [14]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L61
 [15]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L90
 [16]:https://github.com/torvalds/linux/blob/c2e7554e1b85935d962127efa3c2a76483b0b3b6/arch/x86/include/asm/page_types.h#L10
-[17]:https://github.com/torvalds/linux/blob/2dcd0af568b0cf583645c8a317dd12e344b1c72a/arch/x86/include/asm/pgtable_types.h#L9-L28
+[17]:https://github.com/torvalds/linux/blob/2dcd0af568b0cf583645c8a317dd12e344b1c72a/arch/x86/include/asm/pgtable_types.h
+[18]:https://github.com/torvalds/linux/blob/c2e7554e1b85935d962127efa3c2a76483b0b3b6/arch/x86/include/asm/pgtable.h
+[19]:https://github.com/torvalds/linux/blob/c2e7554e1b85935d962127efa3c2a76483b0b3b6/arch/x86/mm/hugetlbpage.c#L71
+[20]:https://github.com/torvalds/linux/blob/c2e7554e1b85935d962127efa3c2a76483b0b3b6/arch/x86/mm/hugetlbpage.c#L65
 
 [ref0]:https://en.wikipedia.org/wiki/Intel_5-level_paging
