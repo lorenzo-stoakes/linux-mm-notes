@@ -270,7 +270,106 @@ Kernel (128TiB)
                                             /      hole      /
                                             \                \
      ESPFIX_BASE_ADDR = ffffff0000000000 -> |----------------| ^
-                                            |   %esp fixup   | | 512 GiB
+                                            |   %esp fixup   | | 0.5 TiB
+                                            |     stacks     | |
+                        ffffff8000000000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+           EFI_VA_END = ffffffef00000000 -> |----------------| ^
+                                            |   EFI region   | | 64 GiB
+                                            | mapping space  | |
+         EFI_VA_START = ffffffff00000000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+   __START_KERNEL_map = ffffffff80000000 -> |----------------| ^
+                                            |  Kernel text   | | 512 MiB
+                                            |    mapping     | |
+        MODULES_VADDR = ffffffffa0000000 -> |----------------| x
+                                            |     Module     | |
+                                            |    mapping     | | 1.5 GiB
+                                            |     space      | |
+                        ffffffffff600000 -> |----------------| x
+                                            |   vsyscalls    | | 8 MiB
+                        ffffffffffe00000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+                                            ------------------
+```
+
+### 5-level
+
+```
+Userland (128TiB)
+                        0000000000000000 -> |---------------| ^
+                                            |    Process    | |
+                                            |    address    | | 64 PiB
+                                            |     space     | |
+                        0100000000000000 -> |---------------| v
+                     .        ` .     -                 `-       ./   _
+                              _    .`   -   The netherworld of  `/   `
+                    -     `  _        |  /      unavailable sign-extended -/ .
+                     ` -        .   `  57-bit address space  -     \  /    -
+                   \-                - . . . .             \      /       -
+Kernel (128TiB)
+                        ff00000000000000 -> |----------------| ^
+                                            |   Hypervisor   | |
+                                            |    reserved    | | 4 PiB
+                                            |      space     | |
+                        ff10000000000000 -> |----------------| x
+                                            | LDT remap for  | | 0.25 PiB
+                                            |       PTI      | |
+[kaslr] __PAGE_OFFSET = ff11000000000000 -> |----------------| x
+                                            | Direct mapping | |
+                                            |  of all phys.  | | 32 PiB
+                                            |     memory     | |
+                        ff91000000000000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+[kaslr] VMALLOC_START = ffa0000000000000 -> |----------------| ^
+                                            |    vmalloc/    | |
+                                            |    ioremap     | | 12.5 PiB
+                                            |     space      | |
+      VMALLOC_END + 1 = ffd2000000000000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+[kaslr] VMEMMAP_START = ffd4000000000000 -> |----------------| ^
+                                            |     Virtual    | |
+                                            |   memory map   | | 0.5 PiB
+                                            |  (struct page  | |
+                                            |     array)     | |
+                        ffd6000000000000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+                        ffdf000000000000 -> |----------------| ^
+                                            |  KASAN shadow  | | 8 PiB
+                                            |     memory     | |
+                        fffffc0000000000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+                        fffffe000000000  -> |----------------| ^
+                                            | cpu_entry_area | | 0.5 TiB
+                                            |     mapping    | |
+                        fffffe8000000000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+     ESPFIX_BASE_ADDR = ffffff0000000000 -> |----------------| ^
+                                            |   %esp fixup   | | 0.5 TiB
                                             |     stacks     | |
                         ffffff8000000000 -> |----------------| v
                                             /                /
