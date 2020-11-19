@@ -33,13 +33,22 @@ the PMD is marked huge (2 MiB page size).
 
 ## Virtual Address layout
 
-Note that the MSB to the bit immediately after the last used bit must all be set
-the same otherwise the processor will fault (denoted as 'xxxx...' below).
+Note that the bits from the MSB up to AND INCLUDING the first bit of the
+addressable range (57 bits for 5-level, 48 bits for 4-level) must all be set the
+same otherwise the processor will fault (denoted as 'xxxx...' below).
+
+As a convention the kernel sets x=1 for kernel addresses and x=0 for userland
+addresses making it easy to differentiate between the two and placing kernel
+mappings in the upper half of the PGD.
+
+The valid address range is determined by [__VIRTUAL_MASK][24] and
+[__VIRTUAL_MASK_SHIFT][25] (56 for 5-level, 47 for 4-level, note that number of
+bits = shift + 1).
 
 ### 5-level
 
 ```
-xxxxxxx                        57 bits
+xxxxxxxx                       57 bits
 <-----><------------------------------------------------------->
    6         5         4         3         2         1
 ---|---------|---------|---------|---------|---------|----------
@@ -60,7 +69,7 @@ xxxxxxx                        57 bits
 ### 4-level
 
 ```
-xxxxxxxxxxxxxxxx                    48 bits
+xxxxxxxxxxxxxxxxx                   48 bits
 <--------------><---------------------------------------------->
    6         5         4         3         2         1
 ---|---------|---------|---------|---------|---------|----------
@@ -110,7 +119,8 @@ Declared in [arch/x86/include/asm/pgtable_types.h][17].
 concerned, however they are used this way by the kernel. `_PAGE_SPECIAL` also
 doubles up as `_PAGE_CPA_TEST`.
 
-The flags for a page table entry are obtained via `pXX_flags()` declared in [pgtable_types.h][17].
+The flags for a page table entry are obtained via `pXX_flags()` declared in
+[pgtable_types.h][17].
 
 The hardware will set `_PAGE_ACCESSED` once the page is first accessed, and once
 set it remains set (sticky bit). It also sets `_PAGE_DIRTY` if data is written
@@ -172,9 +182,130 @@ There are also a few other predicates that don't rely on specific flags:
 
 ## Available address space
 
-* In 4-level mode there are `512 * 1 * 512 * 512 * 512` = 68.7bn 4KiB pages = __256 TiB__ of address space.
+* In 4-level mode there are `512 * 1 * 512 * 512 * 512` = 68.7bn 4KiB pages =
+  __256 TiB__ of address space. Linux divides this into __128 TiB__ of userland
+  address space and __128 TiB__ of kernel address space. A direct memory mapping of
+  all physical memory of 64 TiB is present in the kernel address space so the
+  practical maximum memory capacity is __64 TiB__.
 
-* In 5-level mode there are `512 * 512 * 512 * 512 * 512` = 35.2tn 4KiB pages = __128 PiB__ of address space.
+* In 5-level mode there are `512 * 512 * 512 * 512 * 512` = 35.2tn 4KiB pages =
+  __128 PiB__ of address space. Linux divides this into __64 PiB__ of userland
+  address space and __64 PiB__ of kernel address space.  A direct memory mapping
+  of all physical memory of 32 PiB is present in the kernel address space so the
+  practical maximum memory capacity is __32 PiB__.
+
+## Address space layout
+
+See the [kernel documentation][22] for full details.
+
+Note that with `CONFIG_RANDOMIZE_MEMORY` enabled the actual base of the direct
+memory mapping, vmalloc/ioremap space and the virtual memory map are randomised
+by [arch/x86/mm/kaslr.c][23]. The layout remains the same but the base of these
+regions is offset.
+
+### 4-level
+
+```
+Userland (128TiB)
+
+                        0000000000000000 -> |---------------| ^
+                                            |    Process    | |
+                                            |    address    | | 128 TiB
+                                            |     space     | |
+                        0000800000000000 -> |---------------| v
+
+             .        ` .     -                 `-       ./   _
+                      _    .`   -   The netherworld of  `/   `
+            -     `  _        |  /      unavailable sign-extended -/ .
+             ` -        .   `  48-bit address space  -     \  /    -
+           \-                - . . . .             \      /       -
+
+Kernel (128TiB)
+
+                        ffff800000000000 -> |----------------| ^
+                                            |   Hypervisor   | |
+                                            |    reserved    | | 8 TiB
+                                            |      space     | |
+                        ffff880000000000 -> |----------------| x
+                                            | LDT remap for  | | 0.5 TiB
+                                            |       PTI      | |
+[kaslr] __PAGE_OFFSET = ffff888000000000 -> |----------------| x
+                                            | Direct mapping | |
+                                            |  of all phys.  | | 64 TiB
+                                            |     memory     | |
+                        ffffc88000000000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+[kaslr] VMALLOC_START = ffffc90000000000 -> |----------------| ^
+                                            |    vmalloc/    | |
+                                            |    ioremap     | | 32 TiB
+                                            |     space      | |
+      VMALLOC_END + 1 = ffffe90000000000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+[kaslr] VMEMMAP_START = ffffea0000000000 -> |----------------| ^
+                                            |     Virtual    | |
+                                            |   memory map   | | 1 TiB
+                                            |  (struct page  | |
+                                            |     array)     | |
+                        ffffeb0000000000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+                        ffffec0000000000 -> |----------------| ^
+                                            |  KASAN shadow  | | 16 TiB
+                                            |     memory     | |
+                        fffffc0000000000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+                        fffffe000000000  -> |----------------| ^
+                                            | cpu_entry_area | | 0.5 TiB
+                                            |     mapping    | |
+                        fffffe8000000000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+     ESPFIX_BASE_ADDR = ffffff0000000000 -> |----------------| ^
+                                            |   %esp fixup   | | 512 GiB
+                                            |     stacks     | |
+                        ffffff8000000000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+           EFI_VA_END = ffffffef00000000 -> |----------------| ^
+                                            |   EFI region   | | 64 GiB
+                                            | mapping space  | |
+         EFI_VA_START = ffffffff00000000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+   __START_KERNEL_map = ffffffff80000000 -> |----------------| ^
+                                            |  Kernel text   | | 512 MiB
+                                            |    mapping     | |
+        MODULES_VADDR = ffffffffa0000000 -> |----------------| x
+                                            |     Module     | |
+                                            |    mapping     | | 1.5 GiB
+                                            |     space      | |
+                        ffffffffff600000 -> |----------------| x
+                                            |   vsyscalls    | | 8 MiB
+                        ffffffffffe00000 -> |----------------| v
+                                            /                /
+                                            \     unused     \
+                                            /      hole      /
+                                            \                \
+                                            ------------------
+```
+
 
 [0]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L14-L19
 [1]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_types.h#L285
@@ -186,7 +317,7 @@ There are also a few other predicates that don't rely on specific flags:
 [7]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L63
 [8]:https://github.com/torvalds/linux/blob/c2e7554e1b85935d962127efa3c2a76483b0b3b6/arch/x86/kernel/head64.c#L56
 [9]:https://github.com/torvalds/linux/blob/c2e7554e1b85935d962127efa3c2a76483b0b3b6/arch/x86/kernel/head64.c#L105-L122
-[10]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L84
+[10]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#8L4
 [11]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L91
 [12]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L96
 [13]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L55
@@ -198,5 +329,9 @@ There are also a few other predicates that don't rely on specific flags:
 [19]:https://github.com/torvalds/linux/blob/c2e7554e1b85935d962127efa3c2a76483b0b3b6/arch/x86/mm/hugetlbpage.c#L71
 [20]:https://github.com/torvalds/linux/blob/c2e7554e1b85935d962127efa3c2a76483b0b3b6/arch/x86/mm/hugetlbpage.c#L65
 [21]:https://github.com/torvalds/linux/blob/c2e7554e1b85935d962127efa3c2a76483b0b3b6/arch/x86/include/asm/pgtable_types.h#L283
+[22]:https://github.com/torvalds/linux/blob/master/Documentation/x86/x86_64/mm.rst
+[23]:https://github.com/torvalds/linux/blob/3494d58865ad4a47611dbb427b214cc5227fa5eb/arch/x86/mm/kaslr.c
+[24]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/page_types.h#L20
+[25]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/page_64_types.h#L57
 
 [ref0]:https://en.wikipedia.org/wiki/Intel_5-level_paging
