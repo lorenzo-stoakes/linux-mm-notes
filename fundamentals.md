@@ -160,6 +160,15 @@ The predicates are declared in [arch/x86/include/asm/pgtable.h][18]
 hugetlb-specific semantics (present flag can't be set for PMD). The
 `pud_large()` predicate also asserts the page is present.
 
+Typically these flags can be set via `pXX_mkYYY()` e.g. `pte_mkyoung()`.
+
+There are also a few other predicates that don't rely on specific flags:
+
+| G | 4 | U | M | T | Function |
+|---|---|---|---|---|----------|
+| x | x | x | x | x | `pXX_none()` - Determines if entry is empty |
+| x | x | x | x | x | `pXX_bad()` - Determines if the entry is corrupted |
+|   | x | x | x | x | `pXX_pgprot()` - Returns flags cast to [pgprot_t][21] |
 
 ## Available address space
 
@@ -188,5 +197,6 @@ hugetlb-specific semantics (present flag can't be set for PMD). The
 [18]:https://github.com/torvalds/linux/blob/c2e7554e1b85935d962127efa3c2a76483b0b3b6/arch/x86/include/asm/pgtable.h
 [19]:https://github.com/torvalds/linux/blob/c2e7554e1b85935d962127efa3c2a76483b0b3b6/arch/x86/mm/hugetlbpage.c#L71
 [20]:https://github.com/torvalds/linux/blob/c2e7554e1b85935d962127efa3c2a76483b0b3b6/arch/x86/mm/hugetlbpage.c#L65
+[21]:https://github.com/torvalds/linux/blob/c2e7554e1b85935d962127efa3c2a76483b0b3b6/arch/x86/include/asm/pgtable_types.h#L283
 
 [ref0]:https://en.wikipedia.org/wiki/Intel_5-level_paging
