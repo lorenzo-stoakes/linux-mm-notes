@@ -225,7 +225,7 @@ Kernel (128 TiB)
                         ffff880000000000 -> |----------------| x
                                             | LDT remap for  | | 0.5 TiB
                                             |       PTI      | |
-[kaslr] __PAGE_OFFSET = ffff888000000000 -> |----------------| x
+[kaslr]   PAGE_OFFSET = ffff888000000000 -> |----------------| x
                                             | Direct mapping | |
                                             |  of all phys.  | | 64 TiB
                                             |     memory     | |
@@ -286,11 +286,12 @@ Kernel (128 TiB)
                                             /      hole      /
                                             \                \
    __START_KERNEL_map = ffffffff80000000 -> |----------------| ^
-                                            |  Kernel text   | | 512 MiB
-                                            |    mapping     | |
-        MODULES_VADDR = ffffffffa0000000 -> |----------------| x
+                                            |  Kernel text   | |
+                                            |    mapping     | | KERNEL_IMAGE_SIZE = 1 GiB *
+                                            |(starts at PA 0)| |
+       MODULES_VADDR *= ffffffffc0000000 -> |----------------| x
                                             |     Module     | |
-                                            |    mapping     | | 1.5 GiB
+                                            |    mapping     | | 1 GiB *
                                             |     space      | |
                         ffffffffff600000 -> |----------------| x
                                             |   vsyscalls    | | 8 MiB
@@ -301,6 +302,12 @@ Kernel (128 TiB)
                                             \                \
                                             ------------------
 ```
+
+\* Note that `MODULES_VADDR = __START_KERNEL_map + KERNEL_IMAGE_SIZE` and
+`KERNEL_IMAGE_SIZE` varies depending on whether KASLR (via
+`CONFIG_RANDOMIZE_BASE`) is enabled - with it enabled it is equal to 1 GiB as
+shown in the diagram, otherwise it is equal to 512 MiB and modules get 1.5 GiB
+rather than 1 GiB.
 
 ### 5-level
 
@@ -324,7 +331,7 @@ Kernel (64 PiB)
                         ff10000000000000 -> |----------------| x
                                             | LDT remap for  | | 0.25 PiB
                                             |       PTI      | |
-[kaslr] __PAGE_OFFSET = ff11000000000000 -> |----------------| x
+[kaslr]   PAGE_OFFSET = ff11000000000000 -> |----------------| x
                                             | Direct mapping | |
                                             |  of all phys.  | | 32 PiB
                                             |     memory     | |
@@ -385,11 +392,12 @@ Kernel (64 PiB)
                                             /      hole      /
                                             \                \
    __START_KERNEL_map = ffffffff80000000 -> |----------------| ^
-                                            |  Kernel text   | | 512 MiB
-                                            |    mapping     | |
-        MODULES_VADDR = ffffffffa0000000 -> |----------------| x
+                                            |  Kernel text   | |
+                                            |    mapping     | | KERNEL_IMAGE_SIZE = 1 GiB *
+                                            |(starts at PA 0)| |
+       MODULES_VADDR *= ffffffffc0000000 -> |----------------| x
                                             |     Module     | |
-                                            |    mapping     | | 1.5 GiB
+                                            |    mapping     | | 1 GiB *
                                             |     space      | |
                         ffffffffff600000 -> |----------------| x
                                             |   vsyscalls    | | 8 MiB
