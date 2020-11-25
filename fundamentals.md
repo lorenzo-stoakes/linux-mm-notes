@@ -289,7 +289,7 @@ Kernel (128 TiB)
                                             |  Kernel text   | |
                                             |    mapping     | | KERNEL_IMAGE_SIZE = 1 GiB *
                                             |(starts at PA 0)| |
-       MODULES_VADDR *= ffffffffc0000000 -> |----------------| x
+        MODULES_VADDR = ffffffffc0000000 -> |----------------| x *
                                             |     Module     | |
                                             |    mapping     | | 1 GiB *
                                             |     space      | |
@@ -395,7 +395,7 @@ Kernel (64 PiB)
                                             |  Kernel text   | |
                                             |    mapping     | | KERNEL_IMAGE_SIZE = 1 GiB *
                                             |(starts at PA 0)| |
-       MODULES_VADDR *= ffffffffc0000000 -> |----------------| x
+        MODULES_VADDR = ffffffffc0000000 -> |----------------| x *
                                             |     Module     | |
                                             |    mapping     | | 1 GiB *
                                             |     space      | |
