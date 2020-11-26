@@ -420,7 +420,7 @@ Kernel (64 PiB)
 
 ## Converting between virtual and physical addresses
 
-### Physical Address to Virtual Address (PA to VA)
+### PA to kernel VA
 
 Given the memory map as described above and the fact that the kernel maps in the
 entire physical address space (one of the great benefits of such a huge address
