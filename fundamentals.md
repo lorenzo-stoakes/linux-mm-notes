@@ -286,9 +286,9 @@ Kernel (128 TiB)
                                             /      hole      /
                                             \                \
    __START_KERNEL_map = ffffffff80000000 -> |----------------| ^
-                                            |  Kernel text   | |
-                                            |    mapping     | | KERNEL_IMAGE_SIZE = 1 GiB *
-                                            |(starts at PA 0)| |
+                                            |     Kernel     | |
+                                            |      text      | | KERNEL_IMAGE_SIZE = 1 GiB *
+                                            |     mapping    | |
         MODULES_VADDR = ffffffffc0000000 -> |----------------| x *
                                             |     Module     | |
                                             |    mapping     | | 1 GiB *
@@ -303,11 +303,20 @@ Kernel (128 TiB)
                                             ------------------
 ```
 
+(these notes apply to 5-level also)
+
 \* Note that `MODULES_VADDR = __START_KERNEL_map + KERNEL_IMAGE_SIZE` and
 `KERNEL_IMAGE_SIZE` varies depending on whether KASLR (via
 `CONFIG_RANDOMIZE_BASE`) is enabled - with it enabled it is equal to 1 GiB as
 shown in the diagram, otherwise it is equal to 512 MiB and modules get 1.5 GiB
 rather than 1 GiB.
+
+The kernel text mapping section is _ostensibly_ mapped to PA 0 (KASLR means that
+it usually isn't but page tables are fixed up on early initialisation, see
+section below on VA to PA conversions for moredetails) and due to early kernel
+identity mapping requirements it is physically contiguous meaning that the
+actual data there begins at `__START_KERNEL_map` + [CONFIG_PHYSICAL_START][36].
+
 
 ### 5-level
 
@@ -392,9 +401,9 @@ Kernel (64 PiB)
                                             /      hole      /
                                             \                \
    __START_KERNEL_map = ffffffff80000000 -> |----------------| ^
-                                            |  Kernel text   | |
-                                            |    mapping     | | KERNEL_IMAGE_SIZE = 1 GiB *
-                                            |(starts at PA 0)| |
+                                            |     Kernel     | |
+                                            |      text      | | KERNEL_IMAGE_SIZE = 1 GiB *
+                                            |     mapping    | |
         MODULES_VADDR = ffffffffc0000000 -> |----------------| x *
                                             |     Module     | |
                                             |    mapping     | | 1 GiB *
@@ -409,6 +418,113 @@ Kernel (64 PiB)
                                             ------------------
 ```
 
+## Converting between virtual and physical addresses
+
+### Physical Address to Virtual Address (PA to VA)
+
+Given the memory map as described above and the fact that the kernel maps in the
+entire physical address space (one of the great benefits of such a huge address
+space), conversion from a physical address to a virtual one is simple and the
+base implementation is provided by [__va()][26]:
+
+```
+#define __va(x)			((void *)((unsigned long)(x)+PAGE_OFFSET))
+```
+
+We simply offset the physical address by the address of the base of the physical
+mapping and we're done.
+
+A more palatable version of this might be [phys_to_virt()][27] which makes the
+types explicit:
+
+```
+static inline void *phys_to_virt(phys_addr_t address)
+{
+	return __va(address);
+}
+```
+
+`phys_addr_t` is simply an alias for `unsigned long` i.e. 64-bit unsigned
+integer on x86-64.
+
+### Kernel VA to PA
+
+Conversion in the other direction is trickier as we have multiple ranges of
+virtual addresses a VA might be using.
+
+We retain the same naming convertion as above and define the raw implementation
+of this as [__pa()][29]:
+
+```
+#define __pa(x)		__phys_addr((unsigned long)(x))
+```
+
+Again, a more palatable version of this is [virt_to_phys()][30]:
+
+```
+static inline phys_addr_t virt_to_phys(volatile void *address)
+{
+	return __pa(address);
+}
+```
+
+Tracing through, [__phys_addr()][31] is an alias for [__phys_addr_nodebug()][32]:
+
+```
+#define __phys_addr(x)		__phys_addr_nodebug(x)
+
+...
+
+static inline unsigned long __phys_addr_nodebug(unsigned long x)
+{
+	unsigned long y = x - __START_KERNEL_map;
+
+	/* use the carry flag to determine if x was < __START_KERNEL_map */
+	x = y + ((x > y) ? phys_base : (__START_KERNEL_map - PAGE_OFFSET));
+
+	return x;
+}
+```
+
+[phys_base][33] represents the physical _offset_ from [CONFIG_PHYSICAL_START][36] at
+which the kernel text mappings start if the kernel has been relocated.
+
+In x86-64 this defaults to 0, however it is [offset][35] by the [load_delta][34]
+between the address the kernel code is linked against and the address it is
+actually running at during early initialisation. KASLR in particular means there
+will always be a delta here. See the [linux insides][ref1] [early
+initialisation][ref2] documentation for more details.
+
+In x86-64 we randomise both the physical offset of the kernel text mapping _and_
+the virtual offset (in [handle_relocations()][41]) of the _text section via
+[choose_random_location()][37] which is [invoked][38] in [extract_kernel()][39]
+at kernel decompression.
+
+
+This means that when [__startup_64()][40] is called, the `physaddr` parameter
+and `_text` can be offset from one another when [load_delta][34] is calculated:
+
+```
+	/*
+	 * Compute the delta between the address I am compiled to run at
+	 * and the address I am actually running at.
+	 */
+	load_delta = physaddr - (unsigned long)(_text - __START_KERNEL_map);
+```
+
+As a result `load_delta` can be effectively negative (underflowed as unsigned)
+and thus `phys_base` [can be set][35] to an underflowed negative uint64.
+
+Coming back to the `__phys_addr_nodebug()` function, the purpose of this is to
+determine whether the kernel address referenced is either part of the physical
+memory mapping or the kernel text segment.
+
+The code then either computes `addr + phys_base - __START_KERNEL_map` for a
+kernel text section address or `addr - PAGE_OFFSET` for a physical memory
+mapping address.
+
+Note that we therefore cannot determine the PA of any address from another
+source using this method.
 
 [0]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L14-L19
 [1]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_types.h#L285
@@ -436,5 +552,23 @@ Kernel (64 PiB)
 [23]:https://github.com/torvalds/linux/blob/3494d58865ad4a47611dbb427b214cc5227fa5eb/arch/x86/mm/kaslr.c
 [24]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/page_types.h#L20
 [25]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/page_64_types.h#L57
+[26]:https://github.com/torvalds/linux/blob/fa02fcd94b0c8dff6cc65714510cf25ad194b90d/arch/x86/include/asm/page.h#L59
+[27]:https://github.com/torvalds/linux/blob/fa02fcd94b0c8dff6cc65714510cf25ad194b90d/arch/x86/include/asm/io.h#L148
+[28]:https://github.com/torvalds/linux/blob/fa02fcd94b0c8dff6cc65714510cf25ad194b90d/arch/x86/include/asm/page.h#L59
+[29]:https://github.com/torvalds/linux/blob/fa02fcd94b0c8dff6cc65714510cf25ad194b90d/arch/x86/include/asm/page.h#L42
+[30]:https://github.com/torvalds/linux/blob/fa02fcd94b0c8dff6cc65714510cf25ad194b90d/arch/x86/include/asm/io.h#L129
+[31]:https://github.com/torvalds/linux/blob/fa02fcd94b0c8dff6cc65714510cf25ad194b90d/arch/x86/include/asm/page_64.h#L32
+[32]:https://github.com/torvalds/linux/blob/fa02fcd94b0c8dff6cc65714510cf25ad194b90d/arch/x86/include/asm/page_64.h#L18
+[33]:https://github.com/torvalds/linux/blob/fa02fcd94b0c8dff6cc65714510cf25ad194b90d/arch/x86/kernel/head_64.S#L588-L589
+[34]:https://github.com/torvalds/linux/blob/fa02fcd94b0c8dff6cc65714510cf25ad194b90d/arch/x86/kernel/head64.c#L161
+[35]:https://github.com/torvalds/linux/blob/fa02fcd94b0c8dff6cc65714510cf25ad194b90d/arch/x86/kernel/head64.c#L278
+[36]:https://cateee.net/lkddb/web-lkddb/PHYSICAL_START.html
+[37]:https://github.com/torvalds/linux/blob/0adb32858b0bddf4ada5f364a84ed60b196dbcda/arch/x86/boot/compressed/kaslr.c#L713
+[38]:https://github.com/torvalds/linux/blob/0adb32858b0bddf4ada5f364a84ed60b196dbcda/arch/x86/boot/compressed/misc.c#L400
+[39]:https://github.com/torvalds/linux/blob/0adb32858b0bddf4ada5f364a84ed60b196dbcda/arch/x86/boot/compressed/misc.c#L348
+[40]:https://github.com/torvalds/linux/blob/0adb32858b0bddf4ada5f364a84ed60b196dbcda/arch/x86/kernel/head64.c#L49
+[41]:https://github.com/torvalds/linux/blob/0adb32858b0bddf4ada5f364a84ed60b196dbcda/arch/x86/boot/compressed/misc.c#L211-L212
 
 [ref0]:https://en.wikipedia.org/wiki/Intel_5-level_paging
+[ref1]:https://0xax.gitbooks.io/linux-insides/content/
+[ref2]:https://0xax.gitbooks.io/linux-insides/content/Initialization/linux-initialization-1.html
