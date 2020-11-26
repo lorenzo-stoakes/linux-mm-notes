@@ -418,7 +418,7 @@ Kernel (64 PiB)
                                             ------------------
 ```
 
-## Converting between virtual and physical addresses
+## Converting between physical and virtual addresses
 
 ### PA to kernel VA
 
