@@ -8,11 +8,6 @@
 * [Physical page allocation][phys_alloc] - NUMA nodes, zones, and the physical
   page (buddy) allocator.
 
-### WIP
-
-* [OOM Killer][oom] - Description of the OOM killer.
-* [Raw][raw] - Rough unpolished notes.
-
 ## Descriptions
 
 This is a set of notes on the linux memory management subsystem.
@@ -32,6 +27,3 @@ the basic principles.
 
 [virt_layout]:virt_layout.md
 [phys_alloc]:phys_alloc.md
-
-[oom]:oom.md
-[raw]:raw.md
