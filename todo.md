@@ -27,26 +27,18 @@
 
 ### Questions
 
-* Maximum order supported by the buddy allocator?
-
 * Initial mapping of physical mapping, vmem, etc.?
-
-* How do we track available free physical pages? Are these per-node/zone?
-
-* Can ordinary allocations pull from ZONE_DMA/ZONE_DMA32?
-
-* What is the meaning of e.g. ZONE_DMA in a second node, if the physical memory
-  there starts at a later PA? Or does the socket in a separate node perceive the
-  PAs as starting from 0 again (surely not due to page tables etc.)?
-
-* Can zones overlap? What happens if the system has e.g. 2 GiB of RAM - is
-  `ZONE_DMA32`/`ZONE_DMA` populated but not `ZONE_NORMAL`? Which code is
-  responsible for assigning pages to zones + nodes?
-
-*
 
 ```
 mem_init()
 memblock_free_all()
 preallocate_vmalloc_pages()
 ```
+
+* What is the meaning of e.g. ZONE_DMA in a second node, if the physical memory
+  there starts at a later PA? Or does the socket in a separate node perceive the
+  PAs as starting from 0 again (surely not due to page tables etc.)?
+
+* What happens if the system has e.g. 2 GiB of RAM - is `ZONE_DMA32`/`ZONE_DMA`
+  populated but not `ZONE_NORMAL`? Which code is responsible for assigning pages
+  to zones + nodes?
