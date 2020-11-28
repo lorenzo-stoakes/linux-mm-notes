@@ -1,4 +1,4 @@
-# Linux MM Notes
+# Linux Memory Management
 
 ## Contents
 
