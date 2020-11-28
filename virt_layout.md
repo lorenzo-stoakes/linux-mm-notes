@@ -313,10 +313,9 @@ rather than 1 GiB.
 
 The kernel text mapping section is _ostensibly_ mapped to PA 0 (KASLR means that
 it usually isn't but page tables are fixed up on early initialisation, see
-section below on VA to PA conversions for moredetails) and due to early kernel
+section below on VA to PA conversions for more details) and due to early kernel
 identity mapping requirements it is physically contiguous meaning that the
 actual data there begins at `__START_KERNEL_map` + [CONFIG_PHYSICAL_START][36].
-
 
 ### 5-level
 
@@ -428,7 +427,7 @@ space), conversion from a physical address to a virtual one is simple and the
 base implementation is provided by [__va()][26]:
 
 ```
-#define __va(x)			((void *)((unsigned long)(x)+PAGE_OFFSET))
+#define __va(x)         ((void *)((unsigned long)(x)+PAGE_OFFSET))
 ```
 
 We simply offset the physical address by the address of the base of the physical
@@ -440,7 +439,7 @@ types explicit:
 ```
 static inline void *phys_to_virt(phys_addr_t address)
 {
-	return __va(address);
+    return __va(address);
 }
 ```
 
@@ -456,7 +455,7 @@ We retain the same naming convertion as above and define the raw implementation
 of this as [__pa()][29]:
 
 ```
-#define __pa(x)		__phys_addr((unsigned long)(x))
+#define __pa(x)     __phys_addr((unsigned long)(x))
 ```
 
 Again, a more palatable version of this is [virt_to_phys()][30]:
@@ -464,25 +463,25 @@ Again, a more palatable version of this is [virt_to_phys()][30]:
 ```
 static inline phys_addr_t virt_to_phys(volatile void *address)
 {
-	return __pa(address);
+    return __pa(address);
 }
 ```
 
 Tracing through, [__phys_addr()][31] is an alias for [__phys_addr_nodebug()][32]:
 
 ```
-#define __phys_addr(x)		__phys_addr_nodebug(x)
+#define __phys_addr(x)      __phys_addr_nodebug(x)
 
 ...
 
 static inline unsigned long __phys_addr_nodebug(unsigned long x)
 {
-	unsigned long y = x - __START_KERNEL_map;
+    unsigned long y = x - __START_KERNEL_map;
 
-	/* use the carry flag to determine if x was < __START_KERNEL_map */
-	x = y + ((x > y) ? phys_base : (__START_KERNEL_map - PAGE_OFFSET));
+    /* use the carry flag to determine if x was < __START_KERNEL_map */
+    x = y + ((x > y) ? phys_base : (__START_KERNEL_map - PAGE_OFFSET));
 
-	return x;
+    return x;
 }
 ```
 
@@ -505,11 +504,11 @@ This means that when [__startup_64()][40] is called, the `physaddr` parameter
 and `_text` can be offset from one another when [load_delta][34] is calculated:
 
 ```
-	/*
-	 * Compute the delta between the address I am compiled to run at
-	 * and the address I am actually running at.
-	 */
-	load_delta = physaddr - (unsigned long)(_text - __START_KERNEL_map);
+    /*
+     * Compute the delta between the address I am compiled to run at
+     * and the address I am actually running at.
+     */
+    load_delta = physaddr - (unsigned long)(_text - __START_KERNEL_map);
 ```
 
 As a result `load_delta` can be effectively negative (underflowed as unsigned)

@@ -3,7 +3,7 @@
 ## Nodes and zones
 
 In a [NUMA][numa] (Non-Uniform Memory Access) system memory (and cores) are
-divided into __node__s of locality. Memory accesses across nodes may be
+divided into __nodes__ of locality. Memory accesses across nodes may be
 significantly slower than accesses within them so it is vastly preferable to
 allocate memory within the local node.
 
@@ -18,7 +18,7 @@ lower 4GiB of physical memory so any allocations for these devices must be in
 this range.
 
 In order to preserve memory with specific properties such as this the physical
-memory is sub-divided into __zone__s - typically on an x86-64 system this will
+memory is sub-divided into __zones__ - typically on an x86-64 system this will
 be `ZONE_DMA`, `ZONE_DMA32` and `ZONE_NORMAL`, with the 'normal' zone
 representing all physical memory that sits outside of the DMA/DMA32 zones.
 
@@ -209,9 +209,9 @@ struct zone {
 Each zone has 'watermarks' which determine reclaim behaviour (the kernel
 mechanisms for freeing up physical memory), all expressed in pages:
 
-* Minimum - If free pages is less than or equal to the minimum watermark +
+* Minimum - If free pages are less than or equal to the minimum watermark +
   lowmem reserve (see below) then allocation in this zone is not permitted (and
-  reclaim might be started).
+  memory reclaim might commence).
 
 * Low - When free pages reach this level then the `kswapd` process wakes up and
   performs indirect reclaim of pages.
@@ -221,7 +221,7 @@ mechanisms for freeing up physical memory), all expressed in pages:
 ## Zone page stats
 
 Each zone has 'spanned', 'present', and 'managed' page counts (viewable from
-`/proc/zoneinfo` which also has watermark and much other information):
+`/proc/zoneinfo`):
 
 * __spanned__ is the number of pages contained within the physical address range
   of the zone.
