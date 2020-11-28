@@ -12,16 +12,16 @@
 
 This is a set of notes on the linux memory management subsystem.
 
-They assume an x86-64 architecture (with 4 levels of pagetables) and all
-references to kernel code will reference x64-64 specific data structures and
-code.
+They assume an x86-64 architecture and all architecture-specific references to
+kernel code will reference x64-64 specific data structures and code.
 
 Links to actual code will be taken from the current tip (permalinked via github)
-but obviously anything might change at any time.
+at circa-5.10. I may try to stabilise this at a specific release at some point
+but can't guarantee that at the moment.
 
-These notes, unlike my [originals][0] will make little to no effort to explain
-underlying core concepts, rather they will assume that the reader understands
-the basic principles.
+These notes, unlike my [originals][0], will make little to no effort to explain
+absolutely basic concepts, but rather assume that the reader understands or can
+research these kinds of things.
 
 [0]:https://github.com/lorenzo-stoakes/linux-vm-notes
 
