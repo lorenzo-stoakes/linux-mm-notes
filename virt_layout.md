@@ -1,4 +1,4 @@
-# Fundamentals
+# Virtual memory layout
 
 ## Page tables
 

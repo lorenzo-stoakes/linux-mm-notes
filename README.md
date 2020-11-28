@@ -2,9 +2,14 @@
 
 ## Contents
 
-* [Fundamentals][p1] - Fundamental principles of linux-mm.
-* [OOM Killer][p2] - Description of the OOM killer.
-* [Raw][p3] - Rough unpolished notes.
+* [Virtual memory layout][virt_layout] - linux x86-64 page table structure,
+  virtual memory address space and conversion between physical and virtual
+  memory.
+
+### WIP
+
+* [OOM Killer][oom] - Description of the OOM killer.
+* [Raw][raw] - Rough unpolished notes.
 
 ## Descriptions
 
@@ -24,6 +29,6 @@ the basic principles.
 [0]:https://github.com/lorenzo-stoakes/linux-vm-notes
 [1]:https://ljs.io/patches.html
 
-[p1]:fundamentals.md
-[p2]:oom.md
-[p3]:raw.md
+[virt_layout]:virt_layout.md
+[oom]:oom.md
+[raw]:raw.md
