@@ -261,7 +261,7 @@ Kernel (128 TiB)
                                             \     unused     \
                                             /      hole      /
                                             \                \
-                        fffffe000000000  -> |----------------| ^
+                        fffffe0000000000 -> |----------------| ^
                                             | cpu_entry_area | | 0.5 TiB
                                             |     mapping    | |
                         fffffe8000000000 -> |----------------| v
@@ -376,7 +376,7 @@ Kernel (64 PiB)
                                             \     unused     \
                                             /      hole      /
                                             \                \
-                        fffffe000000000  -> |----------------| ^
+                        fffffe0000000000 -> |----------------| ^
                                             | cpu_entry_area | | 0.5 TiB
                                             |     mapping    | |
                         fffffe8000000000 -> |----------------| v
