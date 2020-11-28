@@ -2,9 +2,11 @@
 
 ## Contents
 
-* [Virtual memory layout][virt_layout] - linux x86-64 page table structure,
-  virtual memory address space and conversion between physical and virtual
-  memory.
+* [Virtual memory layout][virt_layout] - x86-64 page table structure, virtual
+  memory address space and conversion between physical and virtual memory.
+
+* [Physical page allocation][phys_alloc] - NUMA nodes, zones, and the physical
+  page (buddy) allocator.
 
 ### WIP
 
@@ -27,8 +29,9 @@ underlying core concepts, rather they will assume that the reader understands
 the basic principles.
 
 [0]:https://github.com/lorenzo-stoakes/linux-vm-notes
-[1]:https://ljs.io/patches.html
 
 [virt_layout]:virt_layout.md
+[phys_alloc]:phys_alloc.md
+
 [oom]:oom.md
 [raw]:raw.md
