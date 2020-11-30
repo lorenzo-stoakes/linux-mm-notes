@@ -30,6 +30,19 @@
 * Initial mapping of physical mapping, vmem, etc.?
 
 ```
+arch/x86/mm/init.c:
+
+init_mem_mapping() ->
+  memory_map_top_down(), memory_map_bottom_up() -> init_range_memory_mapping()
+  init_memory_mapping()
+  phys_p**_init()
+
+arch/x86/mm/init_64.c:
+  kernel_physical_mapping_init()
+  __kernel_physical_mapping_init()
+
+init/main.c
+
 mem_init()
 memblock_free_all()
 preallocate_vmalloc_pages()
