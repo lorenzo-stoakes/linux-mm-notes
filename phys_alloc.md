@@ -299,6 +299,10 @@ For DMA allocating from DMA32 we are left with 232,262 / 256 = 907 pages.
 This way we are able to use lower zones if needed but reserving pages at each
 proportional to the number of pages managed by zones above.
 
+If there is insufficient memory to fit in the range of a memory zone then that
+zone remains unpopulated, e.g. if a system has less than 4 GiB of RAM available
+then `ZONE_NORMAL` is empty.
+
 ## Buddy allocator
 
 Linux uses the [buddy allocator][buddy] algorithm invented in 1963 in order to
