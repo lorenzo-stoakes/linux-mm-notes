@@ -39,6 +39,20 @@ preallocate_vmalloc_pages()
   there starts at a later PA? Or does the socket in a separate node perceive the
   PAs as starting from 0 again (surely not due to page tables etc.)?
 
-* What happens if the system has e.g. 2 GiB of RAM - is `ZONE_DMA32`/`ZONE_DMA`
-  populated but not `ZONE_NORMAL`? Which code is responsible for assigning pages
-  to zones + nodes?
+* Which code is responsible for assigning pages to zones + nodes?
+
+## virt_layout
+
+```
+__pa_symbol()
+```
+
+### phys_alloc
+
+https://github.com/torvalds/linux/blob/master/Documentation/vm/memory-model.rst
+
+```
+CONFIG_SPARSEMEM
+vmemmap_populate
+pfn_to_page(), page_to_pfn()
+```
