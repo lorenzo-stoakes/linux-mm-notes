@@ -525,6 +525,16 @@ mapping address.
 Note that we therefore cannot determine the PA of any address from another
 source using this method.
 
+## Initial page table setup
+
+In linux all processes share kernel page table mappings between them meaning
+that no [TLB][tlb] flush is required when transitioning from userland to kernel
+space. As a result the initial page table layout (that will be used as a
+template for all processes on the system) needs to be correctly initially
+populated.
+
+TBD
+
 [0]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L14-L19
 [1]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_types.h#L285
 [2]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_types.h#L332
@@ -567,6 +577,8 @@ source using this method.
 [39]:https://github.com/torvalds/linux/blob/0adb32858b0bddf4ada5f364a84ed60b196dbcda/arch/x86/boot/compressed/misc.c#L348
 [40]:https://github.com/torvalds/linux/blob/0adb32858b0bddf4ada5f364a84ed60b196dbcda/arch/x86/kernel/head64.c#L49
 [41]:https://github.com/torvalds/linux/blob/0adb32858b0bddf4ada5f364a84ed60b196dbcda/arch/x86/boot/compressed/misc.c#L211-L212
+
+[tlb]:https://en.wikipedia.org/wiki/Translation_lookaside_buffer
 
 [ref0]:https://en.wikipedia.org/wiki/Intel_5-level_paging
 [ref1]:https://0xax.gitbooks.io/linux-insides/content/
