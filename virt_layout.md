@@ -625,7 +625,6 @@ void __init init_mem_mapping(void)
 
 	load_cr3(swapper_pg_dir);
 	__flush_tlb_all();
-
 }
 ```
 
@@ -655,7 +654,11 @@ Finally, once this memory is mapped we place [swapper_pg_dir][swapper_pg_dir]
 tracking PGD before flushing the [TLB][tlb] to ensure all mappings are correctly
 picked up.
 
-[page-table]:https://en.wikipedia.org/wiki/Page_table
+Diving into the actual mapping code, the
+[init_memory_mapping()][init_memory_mapping] is the core function invoked by all
+of the others.
+
+TBD
 
 [0]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L14-L19
 [1]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_types.h#L285
@@ -707,12 +710,13 @@ picked up.
 [swapper_pg_dir]:https://github.com/torvalds/linux/blob/3bb61aa61828499a7d0f5e560051625fd02ae7e4/arch/x86/include/asm/pgtable_64.h#L29
 [__pa_symbol]:https://github.com/torvalds/linux/blob/3bb61aa61828499a7d0f5e560051625fd02ae7e4/arch/x86/include/asm/page.h#L55
 [__phys_addr_symbol]:https://github.com/torvalds/linux/blob/3bb61aa61828499a7d0f5e560051625fd02ae7e4/arch/x86/include/asm/page_64.h#L33-L34
+[init_memory_mapping]:https://github.com/torvalds/linux/blob/3bb61aa61828499a7d0f5e560051625fd02ae7e4/arch/x86/mm/init.c#L503
 
 [tlb]:https://en.wikipedia.org/wiki/Translation_lookaside_buffer
 [trampoline]:https://en.wikipedia.org/wiki/Trampoline_(computing)
 [real-mode]:https://en.wikipedia.org/wiki/Real_mode
 [memblock]:https://0xax.gitbooks.io/linux-insides/content/MM/linux-mm-1.html
-
+[page-table]:https://en.wikipedia.org/wiki/Page_table
 
 [ref0]:https://en.wikipedia.org/wiki/Intel_5-level_paging
 [ref1]:https://0xax.gitbooks.io/linux-insides/content/
