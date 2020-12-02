@@ -465,7 +465,7 @@ entire physical address space (one of the great benefits of such a huge address
 space), conversion from a physical address to a virtual one is simple and the
 base implementation is provided by [__va()][26]:
 
-```
+```c
 #define __va(x)         ((void *)((unsigned long)(x)+PAGE_OFFSET))
 ```
 
@@ -475,7 +475,7 @@ mapping and we're done.
 A more palatable version of this might be [phys_to_virt()][27] which makes the
 types explicit:
 
-```
+```c
 static inline void *phys_to_virt(phys_addr_t address)
 {
     return __va(address);
@@ -493,13 +493,13 @@ virtual addresses a VA might be using.
 We retain the same naming convertion as above and define the raw implementation
 of this as [__pa()][29]:
 
-```
+```c
 #define __pa(x)     __phys_addr((unsigned long)(x))
 ```
 
 Again, a more palatable version of this is [virt_to_phys()][30]:
 
-```
+```c
 static inline phys_addr_t virt_to_phys(volatile void *address)
 {
     return __pa(address);
@@ -508,7 +508,7 @@ static inline phys_addr_t virt_to_phys(volatile void *address)
 
 Tracing through, [__phys_addr()][31] is an alias for [__phys_addr_nodebug()][32]:
 
-```
+```c
 #define __phys_addr(x)      __phys_addr_nodebug(x)
 
 ...
@@ -542,7 +542,7 @@ at kernel decompression.
 This means that when [__startup_64()][40] is called, the `physaddr` parameter
 and `_text` can be offset from one another when [load_delta][34] is calculated:
 
-```
+```c
     /*
      * Compute the delta between the address I am compiled to run at
      * and the address I am actually running at.
@@ -568,7 +568,7 @@ We also have [__pa_symbol()][__pa_symbol] available for VAs that we know for a
 fact live in the kernel text mappings, which in turn invokes
 [__phys_addr_symbol()][__phys_addr_symbol] which is simply defined as:
 
-```
+```c
 #define __phys_addr_symbol(x) \
 	((unsigned long)(x) - __START_KERNEL_map + phys_base)
 ```
@@ -590,7 +590,7 @@ The initialisation is performed at a top level via
 
 A simplified version of that function:
 
-```
+```c
 void __init init_mem_mapping(void)
 {
 	unsigned long end;

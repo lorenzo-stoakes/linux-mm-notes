@@ -29,7 +29,7 @@ Each node is subdivided into these zones.
 Each node is described by a [pg_data_t][pg_data_t] structure (I have pared
 it down for clarity, see the linked source for the full declaration):
 
-```
+```c
 typedef struct pglist_data {
     /*
      * node_zones contains just the zones for THIS node. Not all of the
@@ -84,7 +84,7 @@ Essentially this contains zone data structures and statistics.
 The [zone][zone] data structure describes memory within a zone (again stripped
 down for clarity, see the link for the full declaration):
 
-```
+```c
 struct zone {
     /* zone watermarks, access with *_wmark_pages(zone) macros */
     unsigned long _watermark[NR_WMARK];
