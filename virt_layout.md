@@ -2,6 +2,18 @@
 
 ## Page tables
 
+[Page tables][page-table] are a series of memory pages which sparsely map
+virtual memory addresses to physical ones. The x86-64 CPU has a specific
+register where the physical address of the top-level page table (PGD) is placed
+and the CPU hardware then uses this to decode all memory addresses used.
+
+Each entry in a page table must be aligned to 4 KiB and can only use the number
+of available bits allowed for virtual addresses (48 for 4-level x86-64, 57 for
+5-level) which leaves a number of bits which can be used as flags to indicate
+various properties of those pages.
+
+### Declarations
+
 Each page table entry is defined as an `unsigned long` (declared as
 [pxxval_t][0] types) i.e. `uint64_t` values.
 
@@ -556,11 +568,10 @@ source using this method.
 
 In linux all processes share kernel page table mappings between them meaning
 that no [TLB][tlb] flush is required when transitioning from userland to kernel
-space. As a result the initial page table layout (that will be used as a
-template for all processes on the system) needs to be correctly initially
-populated.
+space. Additionally kernel page table mappings don't get flushed as a result of
+the `_PAGE_GLOBAL` page table flag being set.
 
-TBD
+[page-table]:https://en.wikipedia.org/wiki/Page_table
 
 [0]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L14-L19
 [1]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_types.h#L285
