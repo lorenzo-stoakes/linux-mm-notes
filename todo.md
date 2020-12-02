@@ -41,13 +41,9 @@ arch/x86/mm/init_64.c:
   kernel_physical_mapping_init()
   __kernel_physical_mapping_init()
 
-init/main.c
-
-mem_init()
-memblock_free_all()
-preallocate_vmalloc_pages()
-
 arch/x86/mm/numa.c:alloc_node_data()
+
+preallocate_vmalloc_pages()
 ```
 
 * What is the meaning of e.g. ZONE_DMA in a second node, if the physical memory
@@ -72,6 +68,19 @@ vmemmap_populate
 pfn_to_page(), page_to_pfn()
 ```
 
+Initial phys mem -> buddy etc.
+
+```
+physical init:
+
+init/main.c
+
+mem_init()
+memblock_free_all()
+```
+
+e820!
+
 ## Handy
 
 ```
@@ -89,3 +98,7 @@ pfn_to_page(), page_to_pfn()
 ```
 
 Tunables... https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/sysctl/vm.rst
+
+
+
+numa_init()
