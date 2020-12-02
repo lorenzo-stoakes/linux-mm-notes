@@ -46,6 +46,8 @@ init/main.c
 mem_init()
 memblock_free_all()
 preallocate_vmalloc_pages()
+
+arch/x86/mm/numa.c:alloc_node_data()
 ```
 
 * What is the meaning of e.g. ZONE_DMA in a second node, if the physical memory
@@ -69,3 +71,21 @@ CONFIG_SPARSEMEM
 vmemmap_populate
 pfn_to_page(), page_to_pfn()
 ```
+
+## Handy
+
+```
+/proc/zoneinfo # Per-zone memory info -> spanned, present, managed
+/proc/meminfo
+/proc/vmstat
+/proc/vmallocinfo
+/proc/pressure/memory
+/proc/slabinfo
+
+/proc/*/maps
+/proc/*/smaps
+/proc/*/status
+/proc/*/numa_maps
+```
+
+Tunables... https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/sysctl/vm.rst
