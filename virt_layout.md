@@ -126,6 +126,33 @@ The hardware will set `_PAGE_ACCESSED` once the page is first accessed, and once
 set it remains set (sticky bit). It also sets `_PAGE_DIRTY` if data is written
 to the page (which we can later clear).
 
+### Aggregated flags
+
+There are some flags that aggregate a number of flags to represent common page
+flag configurations located at [arch/x86/include/asm/pgtable_types.h][17]:
+
+| Name | PRESENT | RW | USER | ACCESSED | NX | DIRTY | PSE | GLOBAL | PWT | PCD |
+|------|---------|----|------|----------|----|-------|-----|--------|-----|-----|
+| PAGE_NONE |  |  |  | x |  |  |  | x |  |  |
+| PAGE_SHARED | x | x | x | x | x |  |  |  |  |  |
+| PAGE_SHARED_EXEC | x | x | x | x |  |  |  |  |  |  |
+| PAGE_COPY_NOEXEC | x |  | x | x | x |  |  |  |  |  |
+| PAGE_COPY_EXEC | x |  | x | x |  |  |  |  |  |  |
+| PAGE_COPY | x |  | x | x | x |  |  |  |  |  |
+| PAGE_READONLY | x |  | x | x | x |  |  |  |  |  |
+| PAGE_READONLY_EXEC | x |  | x | x |  |  |  |  |  |  |
+| PAGE_KERNEL | x | x |  | x | x | x |  | x |  |  |
+| PAGE_KERNEL_EXEC | x | x |  | x |  | x |  | x |  |  |
+| _KERN_PG_TABLE | x | x |  | x |  | x |  |  |  |  |
+| _PAGE_TABLE | x | x | x | x |  | x |  |  |  |  |
+| PAGE_KERNEL_RO | x |  |  | x | x | x |  | x |  |  |
+| PAGE_KERNEL_ROX | x |  |  | x |  | x |  | x |  |  |
+| PAGE_KERNEL_NOCACHE | x | x |  | x | x | x |  | x |  | x |
+| PAGE_KERNEL_VVAR | x |  | x | x | x | x |  | x |  |  |
+| PAGE_KERNEL_LARGE | x | x |  | x | x | x | x | x |  |  |
+| PAGE_KERNEL_LARGE_EXEC | x | x |  | x |  | x | x | x |  |  |
+| PAGE_KERNEL_WP | x | x |  | x | x | x |  | x | x |  |
+
 ### Page size
 
 * By default page size is equal to __4 KiB__ (12 bits of page offset), however x86-64
