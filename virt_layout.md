@@ -564,12 +564,96 @@ mapping address.
 Note that we therefore cannot determine the PA of any address from another
 source using this method.
 
+We also have [__pa_symbol()][__pa_symbol] available for VAs that we know for a
+fact live in the kernel text mappings, which in turn invokes
+[__phys_addr_symbol()][__phys_addr_symbol] which is simply defined as:
+
+```
+#define __phys_addr_symbol(x) \
+	((unsigned long)(x) - __START_KERNEL_map + phys_base)
+```
+
 ## Initial page table setup
 
 In linux all processes share kernel page table mappings between them meaning
 that no [TLB][tlb] flush is required when transitioning from userland to kernel
 space. Additionally kernel page table mappings don't get flushed as a result of
 the `_PAGE_GLOBAL` page table flag being set.
+
+As a result the initial page table layout (that will be used as a template for
+all processes on the system) needs to be setup early in the initialisation
+process.
+
+The initialisation is performed at a top level via
+[start_kernel()][start_kernel] -> [setup_arch()][setup_arch] ->
+[init_mem_mapping()][init_mem_mapping].
+
+A simplified version of that function:
+
+```
+void __init init_mem_mapping(void)
+{
+	unsigned long end;
+
+	end = max_pfn << PAGE_SHIFT;
+
+	/* the ISA range is always mapped regardless of memory holes */
+	init_memory_mapping(0, ISA_END_ADDRESS, PAGE_KERNEL);
+
+	/* Init the trampoline, possibly with KASLR memory offset */
+	init_trampoline();
+
+	/*
+	 * If the allocation is in bottom-up direction, we setup direct mapping
+	 * in bottom-up, otherwise we setup direct mapping in top-down.
+	 */
+	if (memblock_bottom_up()) {
+		unsigned long kernel_end = __pa_symbol(_end);
+
+		/*
+		 * we need two separate calls here. This is because we want to
+		 * allocate page tables above the kernel. So we first map
+		 * [kernel_end, end) to make memory above the kernel be mapped
+		 * as soon as possible. And then use page tables allocated above
+		 * the kernel to map [ISA_END_ADDRESS, kernel_end).
+		 */
+		memory_map_bottom_up(kernel_end, end);
+		memory_map_bottom_up(ISA_END_ADDRESS, kernel_end);
+	} else {
+		memory_map_top_down(ISA_END_ADDRESS, end);
+	}
+
+	load_cr3(swapper_pg_dir);
+	__flush_tlb_all();
+
+}
+```
+
+We map up to the [max_pfn][max_pfn] physical Page Frame Number (PFN which the
+index of a 4 KiB page, e.g. PFN 1 = PA 0x1000, etc.) a value determined during
+memory hotplug discovery.
+
+We start by mapping the x86 'ISA range' which is the first megabyte of memory,
+i.e. the maximum that real-mode x86 can access.
+
+After that we set the PGD entry used by the x86 [real mode][real-mode]
+[trampoline][trampoline] used to initialise other cores.
+
+Once this is done we're ready to perform the bulk of the memory mappings. Early
+kernel uses the [memblock][memblock] simplified memory management system before
+we are able to get the full-fledged mm running. This can allocate memory from
+the bottom up or the top down, depending whether there are concerns around use
+of hot-pluggable memory that could be removed during the process.
+
+If we are in bottom-up mode we start by mapping post-kernel image memory which
+will be where we're allocated page tables so naturally we need this first,
+before mapping the kernel image itself. We determine the end of the kernel via
+converting the (KASLR randomised) VA of the end of the text section to its PA.
+
+Finally, once this memory is mapped we place [swapper_pg_dir][swapper_pg_dir]
+(the PA of the first defined PGD) into x86 register CR3 which is the register
+tracking PGD before flushing the [TLB][tlb] to ensure all mappings are correctly
+picked up.
 
 [page-table]:https://en.wikipedia.org/wiki/Page_table
 
@@ -616,7 +700,19 @@ the `_PAGE_GLOBAL` page table flag being set.
 [40]:https://github.com/torvalds/linux/blob/0adb32858b0bddf4ada5f364a84ed60b196dbcda/arch/x86/kernel/head64.c#L49
 [41]:https://github.com/torvalds/linux/blob/0adb32858b0bddf4ada5f364a84ed60b196dbcda/arch/x86/boot/compressed/misc.c#L211-L212
 
+[start_kernel]:https://github.com/torvalds/linux/blob/3bb61aa61828499a7d0f5e560051625fd02ae7e4/init/main.c#L848
+[setup_arch]:https://github.com/torvalds/linux/blob/3bb61aa61828499a7d0f5e560051625fd02ae7e4/arch/x86/kernel/setup.c#L771
+[init_mem_mapping]:https://github.com/torvalds/linux/blob/3bb61aa61828499a7d0f5e560051625fd02ae7e4/arch/x86/mm/init.c#L706
+[max_pfn]:https://github.com/torvalds/linux/blob/3bb61aa61828499a7d0f5e560051625fd02ae7e4/arch/x86/include/asm/page_64.h#L11
+[swapper_pg_dir]:https://github.com/torvalds/linux/blob/3bb61aa61828499a7d0f5e560051625fd02ae7e4/arch/x86/include/asm/pgtable_64.h#L29
+[__pa_symbol]:https://github.com/torvalds/linux/blob/3bb61aa61828499a7d0f5e560051625fd02ae7e4/arch/x86/include/asm/page.h#L55
+[__phys_addr_symbol]:https://github.com/torvalds/linux/blob/3bb61aa61828499a7d0f5e560051625fd02ae7e4/arch/x86/include/asm/page_64.h#L33-L34
+
 [tlb]:https://en.wikipedia.org/wiki/Translation_lookaside_buffer
+[trampoline]:https://en.wikipedia.org/wiki/Trampoline_(computing)
+[real-mode]:https://en.wikipedia.org/wiki/Real_mode
+[memblock]:https://0xax.gitbooks.io/linux-insides/content/MM/linux-mm-1.html
+
 
 [ref0]:https://en.wikipedia.org/wiki/Intel_5-level_paging
 [ref1]:https://0xax.gitbooks.io/linux-insides/content/
