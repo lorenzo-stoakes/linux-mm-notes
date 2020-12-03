@@ -25,6 +25,10 @@
 
 * CMA?
 
+* CoW
+
+* sparse mem sections.
+
 ### Questions
 
 * Initial mapping of physical mapping, vmem, etc.?
@@ -51,6 +55,8 @@ preallocate_vmalloc_pages()
   PAs as starting from 0 again (surely not due to page tables etc.)?
 
 * Which code is responsible for assigning pages to zones + nodes?
+
+`numa_init()`?
 
 ## virt_layout
 
@@ -98,7 +104,3 @@ e820!
 ```
 
 Tunables... https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/sysctl/vm.rst
-
-
-
-numa_init()
