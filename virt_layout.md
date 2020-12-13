@@ -1026,7 +1026,7 @@ A couple of interesting points to note - we investigate the reported physical
 memory layout (via [e820][e820]) since obviously `after_bootmem` is set and if
 the memory is neither reported as RAM (e.g. it's memory-mapped device registers)
 or is reserved then we clear the entry and abort. This is checked at every level
-*note that when this is ultimately called from
+(note that when this is ultimately called from
 [init_range_memory_mapping()][init_range_memory_mapping] we should already be
 skipping these areas).
 
