@@ -570,19 +570,25 @@ fact live in the kernel text mappings, which in turn invokes
 
 ```c
 #define __phys_addr_symbol(x) \
-	((unsigned long)(x) - __START_KERNEL_map + phys_base)
+    ((unsigned long)(x) - __START_KERNEL_map + phys_base)
 ```
 
-## Initial page table setup
+## Direct physical memory mapping
 
-In linux all processes share kernel page table mappings between them meaning
-that no [TLB][tlb] flush is required when transitioning from userland to kernel
-space. Additionally kernel page table mappings don't get flushed as a result of
-the `_PAGE_GLOBAL` page table flag being set.
+In linux all processes share kernel page table mappings between them (or if
+[Page table isolation][pti] ([kernel docs][pti_kernel_docs]) is available and
+enabled via `CONFIG_PAGE_TABLE_ISOLATION`, can make use of PTI functionality in
+order to reduce the impact of swapping out the PGD) meaning that no [TLB][tlb]
+flush is required when transitioning from userland to kernel space. Additionally
+kernel page table mappings don't get flushed as a result of the `_PAGE_GLOBAL`
+page table flag being set.
 
 As a result the initial page table layout (that will be used as a template for
 all processes on the system) needs to be setup early in the initialisation
-process.
+process so any kernel process can access any part of physical memory.
+
+As part of this work we need to create the direct mapping of all physical memory
+that begins at `PAGE_OFFSET` in virtual memory.
 
 The initialisation is performed at a top level via
 [start_kernel()][start_kernel] -> [setup_arch()][setup_arch] ->
@@ -593,42 +599,42 @@ A simplified version of that function:
 ```c
 void __init init_mem_mapping(void)
 {
-	unsigned long end;
+    unsigned long end;
 
-	end = max_pfn << PAGE_SHIFT;
+    end = max_pfn << PAGE_SHIFT;
 
-	/* the ISA range is always mapped regardless of memory holes */
-	init_memory_mapping(0, ISA_END_ADDRESS, PAGE_KERNEL);
+    /* the ISA range is always mapped regardless of memory holes */
+    init_memory_mapping(0, ISA_END_ADDRESS, PAGE_KERNEL);
 
-	/* Init the trampoline, possibly with KASLR memory offset */
-	init_trampoline();
+    /* Init the trampoline, possibly with KASLR memory offset */
+    init_trampoline();
 
-	/*
-	 * If the allocation is in bottom-up direction, we setup direct mapping
-	 * in bottom-up, otherwise we setup direct mapping in top-down.
-	 */
-	if (memblock_bottom_up()) {
-		unsigned long kernel_end = __pa_symbol(_end);
+    /*
+     * If the allocation is in bottom-up direction, we setup direct mapping
+     * in bottom-up, otherwise we setup direct mapping in top-down.
+     */
+    if (memblock_bottom_up()) {
+        unsigned long kernel_end = __pa_symbol(_end);
 
-		/*
-		 * we need two separate calls here. This is because we want to
-		 * allocate page tables above the kernel. So we first map
-		 * [kernel_end, end) to make memory above the kernel be mapped
-		 * as soon as possible. And then use page tables allocated above
-		 * the kernel to map [ISA_END_ADDRESS, kernel_end).
-		 */
-		memory_map_bottom_up(kernel_end, end);
-		memory_map_bottom_up(ISA_END_ADDRESS, kernel_end);
-	} else {
-		memory_map_top_down(ISA_END_ADDRESS, end);
-	}
+        /*
+         * we need two separate calls here. This is because we want to
+         * allocate page tables above the kernel. So we first map
+         * [kernel_end, end) to make memory above the kernel be mapped
+         * as soon as possible. And then use page tables allocated above
+         * the kernel to map [ISA_END_ADDRESS, kernel_end).
+         */
+        memory_map_bottom_up(kernel_end, end);
+        memory_map_bottom_up(ISA_END_ADDRESS, kernel_end);
+    } else {
+        memory_map_top_down(ISA_END_ADDRESS, end);
+    }
 
-	load_cr3(swapper_pg_dir);
-	__flush_tlb_all();
+    load_cr3(swapper_pg_dir);
+    __flush_tlb_all();
 }
 ```
 
-We map up to the [max_pfn][max_pfn] physical Page Frame Number (PFN which the
+We map up to the [max_pfn][max_pfn] physical Page Frame Number (PFN is the
 index of a 4 KiB page, e.g. PFN 1 = PA 0x1000, etc.) a value determined during
 memory hotplug discovery.
 
@@ -650,15 +656,496 @@ before mapping the kernel image itself. We determine the end of the kernel via
 converting the (KASLR randomised) VA of the end of the text section to its PA.
 
 Finally, once this memory is mapped we place [swapper_pg_dir][swapper_pg_dir]
-(the PA of the first defined PGD) into x86 register CR3 which is the register
-tracking PGD before flushing the [TLB][tlb] to ensure all mappings are correctly
-picked up.
+(the PA of the first defined PGD which is part of the data section of the kernel
+image) into the x86 register CR3 which is the register tracking PGD before
+flushing the [TLB][tlb] to ensure all mappings are correctly picked up.
 
-Diving into the actual mapping code, the
-[init_memory_mapping()][init_memory_mapping] is the core function invoked by all
-of the others.
+[memory_map_top_down()][memory_map_top_down] and
+[memory_map_bottom_up()][memory_map_bottom_up] do roughly the same thing with
+some slight finessing in the top-down case.
 
-TBD
+Taking a look at `memory_map_bottom_up()`:
+
+```c
+static void __init memory_map_bottom_up(unsigned long map_start,
+                    unsigned long map_end)
+{
+    unsigned long next, start;
+    unsigned long mapped_ram_size = 0;
+    /* step_size need to be small so pgt_buf from BRK could cover it */
+    unsigned long step_size = PMD_SIZE;
+
+    start = map_start;
+    min_pfn_mapped = start >> PAGE_SHIFT;
+
+    /*
+     * We start from the bottom (@map_start) and go to the top (@map_end).
+     * The memblock_find_in_range() gets us a block of RAM from the
+     * end of RAM in [min_pfn_mapped, max_pfn_mapped) used as new pages
+     * for page table.
+     */
+    while (start < map_end) {
+        if (step_size && map_end - start > step_size) {
+            next = round_up(start + 1, step_size);
+            if (next > map_end)
+                next = map_end;
+        } else {
+            next = map_end;
+        }
+
+        mapped_ram_size += init_range_memory_mapping(start, next);
+        start = next;
+
+        if (mapped_ram_size >= step_size)
+            step_size = get_new_step_size(step_size);
+    }
+}
+```
+
+We want to allocate page tables above the kernel image as lower memory is often
+reserved or otherwise unavailable.
+
+We start by assigning a minimum step size (i.e. the range of memory we are
+mapping in one go) at `PMD_SIZE` (i.e. 2 MiB) in order that the early memory
+mapping provides sufficient memory for the worst-case allocation. See the below
+section on [alloc_low_pages()][alloc_low_pages] for more details but this is
+necessary as we have a very small amount of memory available for page tables to
+begin with and need to directly map more in order to obtain further page
+tables. At first we have up to 2 MiB of address space available for mapping.
+
+The `round_up()` helper function simply finds the next value aligned to
+`step_size` so the range can vary from a single 4 KiB page to the full step
+size.
+
+The [get_new_step_size()][get_new_step_size] function attempts to increase the
+step size at each while ensuring that we always have sufficient space available
+for page table allocations. This [was changed][step_size_diff] in 2014 to
+increase the step size by 1 bit less than the number of bits available at each
+page table level, e.g. multiplying by 2^8 (256). We only do this if we have
+mapped RAM available that equals or exceeds the step value guaranteeing that we
+always have enough memory to proceed.
+
+In order to perform the memory mapping we invoke
+[init_range_memory_mapping()][init_range_memory_mapping]:
+
+```c
+/*
+ * We need to iterate through the E820 memory map and create direct mappings
+ * for only E820_TYPE_RAM and E820_KERN_RESERVED regions. We cannot simply
+ * create direct mappings for all pfns from [0 to max_low_pfn) and
+ * [4GB to max_pfn) because of possible memory holes in high addresses
+ * that cannot be marked as UC by fixed/variable range MTRRs.
+ * Depending on the alignment of E820 ranges, this may possibly result
+ * in using smaller size (i.e. 4K instead of 2M or 1G) page tables.
+ *
+ * init_mem_mapping() calls init_range_memory_mapping() with big range.
+ * That range would have hole in the middle or ends, and only ram parts
+ * will be mapped in init_range_memory_mapping().
+ */
+static unsigned long __init init_range_memory_mapping(
+					   unsigned long r_start,
+					   unsigned long r_end)
+{
+	unsigned long start_pfn, end_pfn;
+	unsigned long mapped_ram_size = 0;
+	int i;
+
+	for_each_mem_pfn_range(i, MAX_NUMNODES, &start_pfn, &end_pfn, NULL) {
+		u64 start = clamp_val(PFN_PHYS(start_pfn), r_start, r_end);
+		u64 end = clamp_val(PFN_PHYS(end_pfn), r_start, r_end);
+		if (start >= end)
+			continue;
+
+		/*
+		 * if it is overlapping with brk pgt, we need to
+		 * alloc pgt buf from memblock instead.
+		 */
+		can_use_brk_pgt = max(start, (u64)pgt_buf_end<<PAGE_SHIFT) >=
+				    min(end, (u64)pgt_buf_top<<PAGE_SHIFT);
+		init_memory_mapping(start, end, PAGE_KERNEL);
+		mapped_ram_size += end - start;
+		can_use_brk_pgt = true;
+	}
+
+	return mapped_ram_size;
+}
+```
+
+This function makes use of the fact that the the early boot [memblock][memblock]
+memory manager has mapped memory excluding memory that is either reserved (via
+the system's [e820][e820] BIOS memory map information), device memory or
+otherwise unavailable. We don't try to map these but rather only that memory
+which is available as RAM.
+
+### init_memory_mapping()
+
+[init_memory_mapping()][init_memory_mapping] is the point at which blocks of
+memory are actually allocated:
+
+
+```c
+/*
+ * Setup the direct mapping of the physical memory at PAGE_OFFSET.
+ * This runs before bootmem is initialized and gets pages directly from
+ * the physical memory. To access them they are temporarily mapped.
+ */
+unsigned long __ref init_memory_mapping(unsigned long start,
+                    unsigned long end, pgprot_t prot)
+{
+    struct map_range mr[NR_RANGE_MR];
+    unsigned long ret = 0;
+    int nr_range, i;
+
+    pr_debug("init_memory_mapping: [mem %#010lx-%#010lx]\n",
+            start, end - 1);
+
+    memset(mr, 0, sizeof(mr));
+    nr_range = split_mem_range(mr, 0, start, end);
+
+    for (i = 0; i < nr_range; i++)
+        ret = kernel_physical_mapping_init(mr[i].start, mr[i].end,
+                           mr[i].page_size_mask,
+                           prot);
+
+    add_pfn_range_mapped(start >> PAGE_SHIFT, ret >> PAGE_SHIFT);
+
+    return ret >> PAGE_SHIFT;
+}
+```
+
+This function starts by dividing the input range into ranges based on page
+size. x86-64 can support 4 KiB, 2 MiB and 1 GiB page sizes and in order to
+minimise memory used for page tables as much as possible we try to use as large
+a page size as we can.
+
+The maximum number of ranges we can divide a range into for x86-64
+(`NR_RANGE_MR`) is 5. To see why consider mapping an example range:
+
+```
+map 0x001ff000 -
+    0x80201000:
+
+0x001ff000 - 0x001fffff : 4 KiB page size
+0x00200000 - 0x3fffffff : 2 MiB page size
+0x40000000 - 0x7fffffff : 1 GiB page size
+0x80000000 - 0x801fffff : 2 MiB page size
+0x80200000 - 0x80200fff : 4 KiB page size
+```
+
+We can only use the larger page sizes for addresses that are virtually aligned
+(and given `PAGE_OFFSET` is aligned to at least 1 GiB physically aligned) to
+their page size. Therefore we can only map pages above and below the aligned
+maximum range with the maximum available page we can be aligned to. At most this
+will be 4 KiB -> 2 MiB -> 1 GiB -> 2 MiB -> 4 KiB as show in the example above.
+
+[split_mem_range()][split_mem_range] does the work to divide up the input range
+accordingly, dividing the memory into `struct map_range` entries in `mr`:
+
+```c
+struct map_range {
+	unsigned long start;
+	unsigned long end;
+	unsigned page_size_mask;
+};
+```
+
+After this has been determined we jump into
+[kernel_physical_mapping_init()][kernel_physical_mapping_init] to perform the
+actual mapping which invokes
+[__kernel_physical_mapping_init()][__kernel_physical_mapping_init] directly:
+
+```c
+static unsigned long __meminit
+__kernel_physical_mapping_init(unsigned long paddr_start,
+			       unsigned long paddr_end,
+			       unsigned long page_size_mask,
+			       pgprot_t prot, bool init)
+{
+	bool pgd_changed = false;
+	unsigned long vaddr, vaddr_start, vaddr_end, vaddr_next, paddr_last;
+
+	paddr_last = paddr_end;
+	vaddr = (unsigned long)__va(paddr_start);
+	vaddr_end = (unsigned long)__va(paddr_end);
+	vaddr_start = vaddr;
+
+	for (; vaddr < vaddr_end; vaddr = vaddr_next) {
+		pgd_t *pgd = pgd_offset_k(vaddr);
+		p4d_t *p4d;
+
+		vaddr_next = (vaddr & PGDIR_MASK) + PGDIR_SIZE;
+
+		if (pgd_val(*pgd)) {
+			p4d = (p4d_t *)pgd_page_vaddr(*pgd);
+			paddr_last = phys_p4d_init(p4d, __pa(vaddr),
+						   __pa(vaddr_end),
+						   page_size_mask,
+						   prot, init);
+			continue;
+		}
+
+		p4d = alloc_low_page();
+		paddr_last = phys_p4d_init(p4d, __pa(vaddr), __pa(vaddr_end),
+					   page_size_mask, prot, init);
+
+		spin_lock(&init_mm.page_table_lock);
+		if (pgtable_l5_enabled())
+			pgd_populate_init(&init_mm, pgd, p4d, init);
+		else
+			p4d_populate_init(&init_mm, p4d_offset(pgd, vaddr),
+					  (pud_t *) p4d, init);
+
+		spin_unlock(&init_mm.page_table_lock);
+		pgd_changed = true;
+	}
+
+	if (pgd_changed)
+		sync_global_pgds(vaddr_start, vaddr_end - 1);
+
+	return paddr_last;
+}
+```
+
+This starts at a PGD level and invokes functions to perform the page table
+layout at each page table layer below returning the last valid physical address
+contained in the mapped range.
+
+If we already have a PGD mapping then we do not need to add one. If we do need
+to add one then we invoke [alloc_low_page()][alloc_low_page] to alloc a P4D then
+after initiasing it we hold the [init_mm][init_mm] page table lock and update
+the PGD.
+
+In both instances [phys_p4d_init()][phys_p4d_init] is invoked to initialise the
+P4D (in the 4-level case this simply forwards the call to
+[phys_pud_init()][phys_pud_init]).
+
+[sync_global_pgds()][sync_global_pgds] copies PGD data between all copies of
+kernel PGDs.
+
+Each of the `phys_pXX_init()` functions follow the same kind of pattern - using
+`alloc_low_page()` to allocate the actual page tables before invoking the next
+page table level `phys_pXX()_init()` function. Taking
+[phys_pud_init()][phys_pud_init] as a representative example:
+
+```c
+/*
+ * Create PUD level page table mapping for physical addresses. The virtual
+ * and physical address do not have to be aligned at this level. KASLR can
+ * randomize virtual addresses up to this level.
+ * It returns the last physical address mapped.
+ */
+static unsigned long __meminit
+phys_pud_init(pud_t *pud_page, unsigned long paddr, unsigned long paddr_end,
+	      unsigned long page_size_mask, pgprot_t _prot, bool init)
+{
+	unsigned long pages = 0, paddr_next;
+	unsigned long paddr_last = paddr_end;
+	unsigned long vaddr = (unsigned long)__va(paddr);
+	int i = pud_index(vaddr);
+
+	for (; i < PTRS_PER_PUD; i++, paddr = paddr_next) {
+		pud_t *pud;
+		pmd_t *pmd;
+		pgprot_t prot = _prot;
+
+		vaddr = (unsigned long)__va(paddr);
+		pud = pud_page + pud_index(vaddr);
+		paddr_next = (paddr & PUD_MASK) + PUD_SIZE;
+
+		if (paddr >= paddr_end) {
+			if (!after_bootmem &&
+			    !e820__mapped_any(paddr & PUD_MASK, paddr_next,
+					     E820_TYPE_RAM) &&
+			    !e820__mapped_any(paddr & PUD_MASK, paddr_next,
+					     E820_TYPE_RESERVED_KERN))
+				set_pud_init(pud, __pud(0), init);
+			continue;
+		}
+
+		if (!pud_none(*pud)) {
+			if (!pud_large(*pud)) {
+				pmd = pmd_offset(pud, 0);
+				paddr_last = phys_pmd_init(pmd, paddr,
+							   paddr_end,
+							   page_size_mask,
+							   prot, init);
+				continue;
+			}
+			/*
+			 * If we are ok with PG_LEVEL_1G mapping, then we will
+			 * use the existing mapping.
+			 *
+			 * Otherwise, we will split the gbpage mapping but use
+			 * the same existing protection  bits except for large
+			 * page, so that we don't violate Intel's TLB
+			 * Application note (317080) which says, while changing
+			 * the page sizes, new and old translations should
+			 * not differ with respect to page frame and
+			 * attributes.
+			 */
+			if (page_size_mask & (1 << PG_LEVEL_1G)) {
+				if (!after_bootmem)
+					pages++;
+				paddr_last = paddr_next;
+				continue;
+			}
+			prot = pte_pgprot(pte_clrhuge(*(pte_t *)pud));
+		}
+
+		if (page_size_mask & (1<<PG_LEVEL_1G)) {
+			pages++;
+			spin_lock(&init_mm.page_table_lock);
+
+			prot = __pgprot(pgprot_val(prot) | __PAGE_KERNEL_LARGE);
+
+			set_pte_init((pte_t *)pud,
+				     pfn_pte((paddr & PUD_MASK) >> PAGE_SHIFT,
+					     prot),
+				     init);
+			spin_unlock(&init_mm.page_table_lock);
+			paddr_last = paddr_next;
+			continue;
+		}
+
+		pmd = alloc_low_page();
+		paddr_last = phys_pmd_init(pmd, paddr, paddr_end,
+					   page_size_mask, prot, init);
+
+		spin_lock(&init_mm.page_table_lock);
+		pud_populate_init(&init_mm, pud, pmd, init);
+		spin_unlock(&init_mm.page_table_lock);
+	}
+
+	update_page_count(PG_LEVEL_1G, pages);
+
+	return paddr_last;
+}
+```
+
+A couple of interesting points to note - we investigate the reported physical
+memory layout (via [e820][e820]) since obviously `after_bootmem` is set and if
+the memory is neither reported as RAM (e.g. it's memory-mapped device registers)
+or is reserved then we clear the entry and abort. This is checked at every level
+*note that when this is ultimately called from
+[init_range_memory_mapping()][init_range_memory_mapping] we should already be
+skipping these areas).
+
+Secondly, we check to see whether this page is a 1 GiB (if the mapping already
+exists and we don't want that, we reduce the page size) and skip out remaining
+page levels if so.
+
+It's important to note that as we perform these mappings we are updating the
+current live page mappings meaning the direct mappings become ever more
+available as we progress.
+
+Finally, the [init_memory_mapping()][init_memory_mapping] function calls
+[add_pfn_range_mapped()][add_pfn_range_mapped] to update PFN mapping data in
+global state.
+
+### alloc_low_page
+
+The fundamental means of allocating page tables for our direct memory mapping is
+[alloc_low_page()][alloc_low_page] which invokes
+[alloc_low_pages()][alloc_low_pages] with num = 1:
+
+```c
+/*
+ * Pages returned are already directly mapped.
+ *
+ * Changing that is likely to break Xen, see commit:
+ *
+ *    279b706 x86,xen: introduce x86_init.mapping.pagetable_reserve
+ *
+ * for detailed information.
+ */
+__ref void *alloc_low_pages(unsigned int num)
+{
+	unsigned long pfn;
+	int i;
+
+	if (after_bootmem) {
+		unsigned int order;
+
+		order = get_order((unsigned long)num << PAGE_SHIFT);
+		return (void *)__get_free_pages(GFP_ATOMIC | __GFP_ZERO, order);
+	}
+
+	if ((pgt_buf_end + num) > pgt_buf_top || !can_use_brk_pgt) {
+		unsigned long ret = 0;
+
+		if (min_pfn_mapped < max_pfn_mapped) {
+			ret = memblock_find_in_range(
+					min_pfn_mapped << PAGE_SHIFT,
+					max_pfn_mapped << PAGE_SHIFT,
+					PAGE_SIZE * num , PAGE_SIZE);
+		}
+		if (ret)
+			memblock_reserve(ret, PAGE_SIZE * num);
+		else if (can_use_brk_pgt)
+			ret = __pa(extend_brk(PAGE_SIZE * num, PAGE_SIZE));
+
+		if (!ret)
+			panic("alloc_low_pages: can not alloc memory");
+
+		pfn = ret >> PAGE_SHIFT;
+	} else {
+		pfn = pgt_buf_end;
+		pgt_buf_end += num;
+	}
+
+	for (i = 0; i < num; i++) {
+		void *adr;
+
+		adr = __va((pfn + i) << PAGE_SHIFT);
+		clear_page(adr);
+	}
+
+	return __va(pfn << PAGE_SHIFT);
+}
+```
+
+Throughout the direct memory mapping we update the global variables
+`min_pfn_mapped` and `max_pfn_mapped` via
+[add_pfn_range_mapped()][add_pfn_range_mapped] which is invoked by
+[init_memory_mapping()][init_memory_mapping] which is called for every direct
+mapping we add.
+
+These keep track of the range of physical memory pages mapped and thus memory
+potentially available for page table allocations. In this function it allows us
+to determine what range of memory is potentially available for page table
+allocation so we can use the direct memory mapping to access this memory.
+
+There is a bootstrapping problem with this however - what can we do when need to
+allocate page tables in order to get access to the memory we want to put page
+tables in? The solution is the `pgt_buf` - a block of memory allocated in the
+BSS section of the kernel ELF image (i.e. right at the end) which is limited to
+`__brk_limit` and extended by [extend_brk()][extend_brk].
+
+During the direct memory mapping process the whole kernel image is of course by
+necessity mapped which includes this region, meaning we can bootstrap page table
+allocations before we have direct memory mappings above the kernel to allocate
+there.
+
+The `pgt_buf_end` variable tracks the current end of used `pgt_buf` memory,
+while `pgt_buf_top` indicates the available capacity. These values are expressed
+in pages.
+
+We will have 6 or 12 pages available in the `pgt_buf` depending on whether KASLR
+is enabled, providing space for the ISA mapping and the first `PMD_SIZE` mapping
+(PUD, PMD, PTE tables for 4-level) providing 2 MiB of address space or 512 4 KiB
+page tables.
+
+Even if these are exceeded, we attempt to invoke [extend_brk()][extend_brk] to
+get more memory.
+
+If we need to allocate memory from our now-mapped ranges we use
+[memblock][memblock] which will make available memory that is marked as free and
+available to the system. This will be what is used for the majority of the page
+table allocations.
+
+Later, memblock allocations get put into the buddy allocator as part of
+transitioning from the early boot memory stage so each allocated page like this
+will be properly accounted for.
 
 [0]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_64_types.h#L14-L19
 [1]:https://github.com/torvalds/linux/blob/0fa8ee0d9ab95c9350b8b84574824d9a384a9f7d/arch/x86/include/asm/pgtable_types.h#L285
@@ -711,12 +1198,32 @@ TBD
 [__pa_symbol]:https://github.com/torvalds/linux/blob/3bb61aa61828499a7d0f5e560051625fd02ae7e4/arch/x86/include/asm/page.h#L55
 [__phys_addr_symbol]:https://github.com/torvalds/linux/blob/3bb61aa61828499a7d0f5e560051625fd02ae7e4/arch/x86/include/asm/page_64.h#L33-L34
 [init_memory_mapping]:https://github.com/torvalds/linux/blob/3bb61aa61828499a7d0f5e560051625fd02ae7e4/arch/x86/mm/init.c#L503
+[memory_map_top_down]:https://github.com/torvalds/linux/blob/7f376f1917d7461e05b648983e8d2aea9d0712b2/arch/x86/mm/init.c#L596
+[memory_map_bottom_up]:https://github.com/torvalds/linux/blob/7f376f1917d7461e05b648983e8d2aea9d0712b2/arch/x86/mm/init.c#L650
+ [split_mem_range]:https://github.com/torvalds/linux/blob/7b1b868e1d9156484ccce9bf11122c053de82617/arch/x86/mm/init.c#L370
+[kernel_physical_mapping_init]:https://github.com/torvalds/linux/blob/6bff9bb8a292668e7da3e740394b061e5201f683/arch/x86/mm/init_64.c#L782
+[__kernel_physical_mapping_init]:https://github.com/torvalds/linux/blob/6bff9bb8a292668e7da3e740394b061e5201f683/arch/x86/mm/init_64.c#L725
+[init_mm]:https://github.com/torvalds/linux/blob/6bff9bb8a292668e7da3e740394b061e5201f683/mm/init-mm.c#L29
+[phys_p4d_init]:https://github.com/torvalds/linux/blob/6bff9bb8a292668e7da3e740394b061e5201f683/arch/x86/mm/init_64.c#L674
+[phys_pud_init]:https://github.com/torvalds/linux/blob/6bff9bb8a292668e7da3e740394b061e5201f683/arch/x86/mm/init_64.c#L587
+[sync_global_pgds]:https://github.com/torvalds/linux/blob/6bff9bb8a292668e7da3e740394b061e5201f683/arch/x86/mm/init_64.c#L212
+[alloc_low_page]:https://github.com/torvalds/linux/blob/6bff9bb8a292668e7da3e740394b061e5201f683/arch/x86/mm/mm_internal.h#L6
+[alloc_low_pages]:https://github.com/torvalds/linux/blob/7b1b868e1d9156484ccce9bf11122c053de82617/arch/x86/mm/init.c#L114
+[add_pfn_range_mapped]:https://github.com/torvalds/linux/blob/7b1b868e1d9156484ccce9bf11122c053de82617/arch/x86/mm/init.c#L473
+[early_alloc_pgt_buf]:https://github.com/torvalds/linux/blob/6bff9bb8a292668e7da3e740394b061e5201f683/arch/x86/mm/init.c#L172
+[extend_brk]:https://github.com/torvalds/linux/blob/6bff9bb8a292668e7da3e740394b061e5201f683/arch/x86/kernel/setup.c#L198
+[get_new_step_size]:https://github.com/torvalds/linux/blob/7b1b868e1d9156484ccce9bf11122c053de82617/arch/x86/mm/init.c#L567
+[init_range_memory_mapping]:https://github.com/torvalds/linux/blob/7b1b868e1d9156484ccce9bf11122c053de82617/arch/x86/mm/init.c#L539
 
 [tlb]:https://en.wikipedia.org/wiki/Translation_lookaside_buffer
 [trampoline]:https://en.wikipedia.org/wiki/Trampoline_(computing)
 [real-mode]:https://en.wikipedia.org/wiki/Real_mode
 [memblock]:https://0xax.gitbooks.io/linux-insides/content/MM/linux-mm-1.html
 [page-table]:https://en.wikipedia.org/wiki/Page_table
+[pti]:https://en.wikipedia.org/wiki/Kernel_page-table_isolation
+[pti_kernel_docs]:https://www.kernel.org/doc/html/latest/x86/pti.html
+[e820]:https://en.wikipedia.org/wiki/E820
+[step_size_diff]:https://github.com/torvalds/linux/commit/132978b94e66f8ad7d20790f8332f0e9c1426029
 
 [ref0]:https://en.wikipedia.org/wiki/Intel_5-level_paging
 [ref1]:https://0xax.gitbooks.io/linux-insides/content/
