@@ -772,9 +772,9 @@ static unsigned long __init init_range_memory_mapping(
 ```
 
 This function makes use of the fact that the the early boot [memblock][memblock]
-memory manager has mapped memory excluding memory that is either reserved (via
-the system's [e820][e820] BIOS memory map information), device memory or
-otherwise unavailable. We don't try to map these but rather only that memory
+memory manager has mapped memory excluding memory that is either reserved,
+device memory or otherwise unavailable (via the system's [e820][e820] BIOS
+memory map information). We don't try to map these but rather only that memory
 which is available as RAM.
 
 ### init_memory_mapping()
