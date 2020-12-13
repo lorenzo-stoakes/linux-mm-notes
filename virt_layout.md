@@ -743,31 +743,31 @@ In order to perform the memory mapping we invoke
  * will be mapped in init_range_memory_mapping().
  */
 static unsigned long __init init_range_memory_mapping(
-					   unsigned long r_start,
-					   unsigned long r_end)
+                       unsigned long r_start,
+                       unsigned long r_end)
 {
-	unsigned long start_pfn, end_pfn;
-	unsigned long mapped_ram_size = 0;
-	int i;
+    unsigned long start_pfn, end_pfn;
+    unsigned long mapped_ram_size = 0;
+    int i;
 
-	for_each_mem_pfn_range(i, MAX_NUMNODES, &start_pfn, &end_pfn, NULL) {
-		u64 start = clamp_val(PFN_PHYS(start_pfn), r_start, r_end);
-		u64 end = clamp_val(PFN_PHYS(end_pfn), r_start, r_end);
-		if (start >= end)
-			continue;
+    for_each_mem_pfn_range(i, MAX_NUMNODES, &start_pfn, &end_pfn, NULL) {
+        u64 start = clamp_val(PFN_PHYS(start_pfn), r_start, r_end);
+        u64 end = clamp_val(PFN_PHYS(end_pfn), r_start, r_end);
+        if (start >= end)
+            continue;
 
-		/*
-		 * if it is overlapping with brk pgt, we need to
-		 * alloc pgt buf from memblock instead.
-		 */
-		can_use_brk_pgt = max(start, (u64)pgt_buf_end<<PAGE_SHIFT) >=
-				    min(end, (u64)pgt_buf_top<<PAGE_SHIFT);
-		init_memory_mapping(start, end, PAGE_KERNEL);
-		mapped_ram_size += end - start;
-		can_use_brk_pgt = true;
-	}
+        /*
+         * if it is overlapping with brk pgt, we need to
+         * alloc pgt buf from memblock instead.
+         */
+        can_use_brk_pgt = max(start, (u64)pgt_buf_end<<PAGE_SHIFT) >=
+                    min(end, (u64)pgt_buf_top<<PAGE_SHIFT);
+        init_memory_mapping(start, end, PAGE_KERNEL);
+        mapped_ram_size += end - start;
+        can_use_brk_pgt = true;
+    }
 
-	return mapped_ram_size;
+    return mapped_ram_size;
 }
 ```
 
@@ -843,9 +843,9 @@ accordingly, dividing the memory into `struct map_range` entries in `mr`:
 
 ```c
 struct map_range {
-	unsigned long start;
-	unsigned long end;
-	unsigned page_size_mask;
+    unsigned long start;
+    unsigned long end;
+    unsigned page_size_mask;
 };
 ```
 
@@ -857,52 +857,52 @@ actual mapping which invokes
 ```c
 static unsigned long __meminit
 __kernel_physical_mapping_init(unsigned long paddr_start,
-			       unsigned long paddr_end,
-			       unsigned long page_size_mask,
-			       pgprot_t prot, bool init)
+                   unsigned long paddr_end,
+                   unsigned long page_size_mask,
+                   pgprot_t prot, bool init)
 {
-	bool pgd_changed = false;
-	unsigned long vaddr, vaddr_start, vaddr_end, vaddr_next, paddr_last;
+    bool pgd_changed = false;
+    unsigned long vaddr, vaddr_start, vaddr_end, vaddr_next, paddr_last;
 
-	paddr_last = paddr_end;
-	vaddr = (unsigned long)__va(paddr_start);
-	vaddr_end = (unsigned long)__va(paddr_end);
-	vaddr_start = vaddr;
+    paddr_last = paddr_end;
+    vaddr = (unsigned long)__va(paddr_start);
+    vaddr_end = (unsigned long)__va(paddr_end);
+    vaddr_start = vaddr;
 
-	for (; vaddr < vaddr_end; vaddr = vaddr_next) {
-		pgd_t *pgd = pgd_offset_k(vaddr);
-		p4d_t *p4d;
+    for (; vaddr < vaddr_end; vaddr = vaddr_next) {
+        pgd_t *pgd = pgd_offset_k(vaddr);
+        p4d_t *p4d;
 
-		vaddr_next = (vaddr & PGDIR_MASK) + PGDIR_SIZE;
+        vaddr_next = (vaddr & PGDIR_MASK) + PGDIR_SIZE;
 
-		if (pgd_val(*pgd)) {
-			p4d = (p4d_t *)pgd_page_vaddr(*pgd);
-			paddr_last = phys_p4d_init(p4d, __pa(vaddr),
-						   __pa(vaddr_end),
-						   page_size_mask,
-						   prot, init);
-			continue;
-		}
+        if (pgd_val(*pgd)) {
+            p4d = (p4d_t *)pgd_page_vaddr(*pgd);
+            paddr_last = phys_p4d_init(p4d, __pa(vaddr),
+                           __pa(vaddr_end),
+                           page_size_mask,
+                           prot, init);
+            continue;
+        }
 
-		p4d = alloc_low_page();
-		paddr_last = phys_p4d_init(p4d, __pa(vaddr), __pa(vaddr_end),
-					   page_size_mask, prot, init);
+        p4d = alloc_low_page();
+        paddr_last = phys_p4d_init(p4d, __pa(vaddr), __pa(vaddr_end),
+                       page_size_mask, prot, init);
 
-		spin_lock(&init_mm.page_table_lock);
-		if (pgtable_l5_enabled())
-			pgd_populate_init(&init_mm, pgd, p4d, init);
-		else
-			p4d_populate_init(&init_mm, p4d_offset(pgd, vaddr),
-					  (pud_t *) p4d, init);
+        spin_lock(&init_mm.page_table_lock);
+        if (pgtable_l5_enabled())
+            pgd_populate_init(&init_mm, pgd, p4d, init);
+        else
+            p4d_populate_init(&init_mm, p4d_offset(pgd, vaddr),
+                      (pud_t *) p4d, init);
 
-		spin_unlock(&init_mm.page_table_lock);
-		pgd_changed = true;
-	}
+        spin_unlock(&init_mm.page_table_lock);
+        pgd_changed = true;
+    }
 
-	if (pgd_changed)
-		sync_global_pgds(vaddr_start, vaddr_end - 1);
+    if (pgd_changed)
+        sync_global_pgds(vaddr_start, vaddr_end - 1);
 
-	return paddr_last;
+    return paddr_last;
 }
 ```
 
@@ -936,89 +936,89 @@ page table level `phys_pXX()_init()` function. Taking
  */
 static unsigned long __meminit
 phys_pud_init(pud_t *pud_page, unsigned long paddr, unsigned long paddr_end,
-	      unsigned long page_size_mask, pgprot_t _prot, bool init)
+          unsigned long page_size_mask, pgprot_t _prot, bool init)
 {
-	unsigned long pages = 0, paddr_next;
-	unsigned long paddr_last = paddr_end;
-	unsigned long vaddr = (unsigned long)__va(paddr);
-	int i = pud_index(vaddr);
+    unsigned long pages = 0, paddr_next;
+    unsigned long paddr_last = paddr_end;
+    unsigned long vaddr = (unsigned long)__va(paddr);
+    int i = pud_index(vaddr);
 
-	for (; i < PTRS_PER_PUD; i++, paddr = paddr_next) {
-		pud_t *pud;
-		pmd_t *pmd;
-		pgprot_t prot = _prot;
+    for (; i < PTRS_PER_PUD; i++, paddr = paddr_next) {
+        pud_t *pud;
+        pmd_t *pmd;
+        pgprot_t prot = _prot;
 
-		vaddr = (unsigned long)__va(paddr);
-		pud = pud_page + pud_index(vaddr);
-		paddr_next = (paddr & PUD_MASK) + PUD_SIZE;
+        vaddr = (unsigned long)__va(paddr);
+        pud = pud_page + pud_index(vaddr);
+        paddr_next = (paddr & PUD_MASK) + PUD_SIZE;
 
-		if (paddr >= paddr_end) {
-			if (!after_bootmem &&
-			    !e820__mapped_any(paddr & PUD_MASK, paddr_next,
-					     E820_TYPE_RAM) &&
-			    !e820__mapped_any(paddr & PUD_MASK, paddr_next,
-					     E820_TYPE_RESERVED_KERN))
-				set_pud_init(pud, __pud(0), init);
-			continue;
-		}
+        if (paddr >= paddr_end) {
+            if (!after_bootmem &&
+                !e820__mapped_any(paddr & PUD_MASK, paddr_next,
+                         E820_TYPE_RAM) &&
+                !e820__mapped_any(paddr & PUD_MASK, paddr_next,
+                         E820_TYPE_RESERVED_KERN))
+                set_pud_init(pud, __pud(0), init);
+            continue;
+        }
 
-		if (!pud_none(*pud)) {
-			if (!pud_large(*pud)) {
-				pmd = pmd_offset(pud, 0);
-				paddr_last = phys_pmd_init(pmd, paddr,
-							   paddr_end,
-							   page_size_mask,
-							   prot, init);
-				continue;
-			}
-			/*
-			 * If we are ok with PG_LEVEL_1G mapping, then we will
-			 * use the existing mapping.
-			 *
-			 * Otherwise, we will split the gbpage mapping but use
-			 * the same existing protection  bits except for large
-			 * page, so that we don't violate Intel's TLB
-			 * Application note (317080) which says, while changing
-			 * the page sizes, new and old translations should
-			 * not differ with respect to page frame and
-			 * attributes.
-			 */
-			if (page_size_mask & (1 << PG_LEVEL_1G)) {
-				if (!after_bootmem)
-					pages++;
-				paddr_last = paddr_next;
-				continue;
-			}
-			prot = pte_pgprot(pte_clrhuge(*(pte_t *)pud));
-		}
+        if (!pud_none(*pud)) {
+            if (!pud_large(*pud)) {
+                pmd = pmd_offset(pud, 0);
+                paddr_last = phys_pmd_init(pmd, paddr,
+                               paddr_end,
+                               page_size_mask,
+                               prot, init);
+                continue;
+            }
+            /*
+             * If we are ok with PG_LEVEL_1G mapping, then we will
+             * use the existing mapping.
+             *
+             * Otherwise, we will split the gbpage mapping but use
+             * the same existing protection  bits except for large
+             * page, so that we don't violate Intel's TLB
+             * Application note (317080) which says, while changing
+             * the page sizes, new and old translations should
+             * not differ with respect to page frame and
+             * attributes.
+             */
+            if (page_size_mask & (1 << PG_LEVEL_1G)) {
+                if (!after_bootmem)
+                    pages++;
+                paddr_last = paddr_next;
+                continue;
+            }
+            prot = pte_pgprot(pte_clrhuge(*(pte_t *)pud));
+        }
 
-		if (page_size_mask & (1<<PG_LEVEL_1G)) {
-			pages++;
-			spin_lock(&init_mm.page_table_lock);
+        if (page_size_mask & (1<<PG_LEVEL_1G)) {
+            pages++;
+            spin_lock(&init_mm.page_table_lock);
 
-			prot = __pgprot(pgprot_val(prot) | __PAGE_KERNEL_LARGE);
+            prot = __pgprot(pgprot_val(prot) | __PAGE_KERNEL_LARGE);
 
-			set_pte_init((pte_t *)pud,
-				     pfn_pte((paddr & PUD_MASK) >> PAGE_SHIFT,
-					     prot),
-				     init);
-			spin_unlock(&init_mm.page_table_lock);
-			paddr_last = paddr_next;
-			continue;
-		}
+            set_pte_init((pte_t *)pud,
+                     pfn_pte((paddr & PUD_MASK) >> PAGE_SHIFT,
+                         prot),
+                     init);
+            spin_unlock(&init_mm.page_table_lock);
+            paddr_last = paddr_next;
+            continue;
+        }
 
-		pmd = alloc_low_page();
-		paddr_last = phys_pmd_init(pmd, paddr, paddr_end,
-					   page_size_mask, prot, init);
+        pmd = alloc_low_page();
+        paddr_last = phys_pmd_init(pmd, paddr, paddr_end,
+                       page_size_mask, prot, init);
 
-		spin_lock(&init_mm.page_table_lock);
-		pud_populate_init(&init_mm, pud, pmd, init);
-		spin_unlock(&init_mm.page_table_lock);
-	}
+        spin_lock(&init_mm.page_table_lock);
+        pud_populate_init(&init_mm, pud, pmd, init);
+        spin_unlock(&init_mm.page_table_lock);
+    }
 
-	update_page_count(PG_LEVEL_1G, pages);
+    update_page_count(PG_LEVEL_1G, pages);
 
-	return paddr_last;
+    return paddr_last;
 }
 ```
 
@@ -1060,47 +1060,47 @@ The fundamental means of allocating page tables for our direct memory mapping is
  */
 __ref void *alloc_low_pages(unsigned int num)
 {
-	unsigned long pfn;
-	int i;
+    unsigned long pfn;
+    int i;
 
-	if (after_bootmem) {
-		unsigned int order;
+    if (after_bootmem) {
+        unsigned int order;
 
-		order = get_order((unsigned long)num << PAGE_SHIFT);
-		return (void *)__get_free_pages(GFP_ATOMIC | __GFP_ZERO, order);
-	}
+        order = get_order((unsigned long)num << PAGE_SHIFT);
+        return (void *)__get_free_pages(GFP_ATOMIC | __GFP_ZERO, order);
+    }
 
-	if ((pgt_buf_end + num) > pgt_buf_top || !can_use_brk_pgt) {
-		unsigned long ret = 0;
+    if ((pgt_buf_end + num) > pgt_buf_top || !can_use_brk_pgt) {
+        unsigned long ret = 0;
 
-		if (min_pfn_mapped < max_pfn_mapped) {
-			ret = memblock_find_in_range(
-					min_pfn_mapped << PAGE_SHIFT,
-					max_pfn_mapped << PAGE_SHIFT,
-					PAGE_SIZE * num , PAGE_SIZE);
-		}
-		if (ret)
-			memblock_reserve(ret, PAGE_SIZE * num);
-		else if (can_use_brk_pgt)
-			ret = __pa(extend_brk(PAGE_SIZE * num, PAGE_SIZE));
+        if (min_pfn_mapped < max_pfn_mapped) {
+            ret = memblock_find_in_range(
+                    min_pfn_mapped << PAGE_SHIFT,
+                    max_pfn_mapped << PAGE_SHIFT,
+                    PAGE_SIZE * num , PAGE_SIZE);
+        }
+        if (ret)
+            memblock_reserve(ret, PAGE_SIZE * num);
+        else if (can_use_brk_pgt)
+            ret = __pa(extend_brk(PAGE_SIZE * num, PAGE_SIZE));
 
-		if (!ret)
-			panic("alloc_low_pages: can not alloc memory");
+        if (!ret)
+            panic("alloc_low_pages: can not alloc memory");
 
-		pfn = ret >> PAGE_SHIFT;
-	} else {
-		pfn = pgt_buf_end;
-		pgt_buf_end += num;
-	}
+        pfn = ret >> PAGE_SHIFT;
+    } else {
+        pfn = pgt_buf_end;
+        pgt_buf_end += num;
+    }
 
-	for (i = 0; i < num; i++) {
-		void *adr;
+    for (i = 0; i < num; i++) {
+        void *adr;
 
-		adr = __va((pfn + i) << PAGE_SHIFT);
-		clear_page(adr);
-	}
+        adr = __va((pfn + i) << PAGE_SHIFT);
+        clear_page(adr);
+    }
 
-	return __va(pfn << PAGE_SHIFT);
+    return __va(pfn << PAGE_SHIFT);
 }
 ```
 
