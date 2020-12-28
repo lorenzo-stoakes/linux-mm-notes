@@ -251,6 +251,24 @@ mechanisms for freeing up physical memory), all expressed in pages:
 * __High__ - If free pages are equal to or greater than this value `kswapd` can
   sleep for this node/zone.
 
+The watermarks are updated via [setup_per_zone_wmarks()][setup_per_zone_wmarks]
+and ultimately [__setup_per_zone_wmarks()][__setup_per_zone_wmarks]. The minimum
+watermark is initially set by
+[init_per_zone_wmark_min()][init_per_zone_wmark_min] which sets it to roughly
+`4 * sqrt(mem_kbytes)` KiB and is controllable via the `vm.min_free_kbytes`
+tunable which, when changed, invokes `setup_per_zone_wmarks()` again.
+
+The minimum watermark for each zone is set equal to `vm.min_free_kbytes` (in
+pages) multiplied by the fraction of managed pages within in each zone.
+
+The low and high watermarks are determined by
+[vm.watermark_scale_factor][watermark_scale_factor] expressed in fractions of
+10,000, e.g. the default 10 = 10/10,000 = 0.1%.
+
+The low watermark is equal to the minimum + scale factor * zone managed pages,
+and the high watermark is equal to the minimum + 2 * scale factor * zone managed
+pages.
+
 ## Zone page stats
 
 Each zone has 'spanned', 'present', and 'managed' page counts (viewable from
@@ -267,11 +285,9 @@ Each zone has 'spanned', 'present', and 'managed' page counts (viewable from
 
 ## Zone assignment
 
-The [__alloc_pages_nodemask()][__alloc_pages_nodemask] allocation algorithm
-(discussed in more detail below) is the function which performs all physical
-memory allocations. It attempts to use the 'highest' zone specified by the Get
-Free Pages (GFP) flags (which specify how an allocation should be performed,
-usually all zones are game).
+When performing allocations we attempt to use the 'highest' zone specified by
+the Get Free Pages (GFP) flags (which specify how an allocation should be
+performed, usually all zones are game).
 
 By 'highest' this is in reference to the value of the zone enums, which range in
 ascending order from the smaller lower memory regions (e.g. `ZONE_DMA`,
@@ -411,9 +427,14 @@ TBD.
 [pg_data_t]:https://github.com/torvalds/linux/blob/45e885c439e825c19f3a51e46ef8210984bc0a9c/include/linux/mmzone.h#L726
 [zone]:https://github.com/torvalds/linux/blob/45e885c439e825c19f3a51e46ef8210984bc0a9c/include/linux/mmzone.h#L448
 [MAX_ORDER]:https://github.com/torvalds/linux/blob/45e885c439e825c19f3a51e46ef8210984bc0a9c/include/linux/mmzone.h#L27
-[__alloc_pages_nodemask]:https://github.com/torvalds/linux/blob/45e885c439e825c19f3a51e46ef8210984bc0a9c/mm/page_alloc.c#L4917
 [lowmem_reserve_ratio]:https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/sysctl/vm.rst#lowmem_reserve_ratio
 [setup_per_zone_lowmem_reserve]:https://github.com/torvalds/linux/blob/5c8fe583cce542aa0b84adc939ce85293de36e5e/mm/page_alloc.c#L7871
 [kernelcore]:https://github.com/torvalds/linux/blob/5c8fe583cce542aa0b84adc939ce85293de36e5e/Documentation/admin-guide/kernel-parameters.txt#L2128
 [movablecore]:https://github.com/torvalds/linux/blob/5c8fe583cce542aa0b84adc939ce85293de36e5e/Documentation/admin-guide/kernel-parameters.txt#L2918
 [zone_device-doc]:https://github.com/torvalds/linux/blob/master/Documentation/vm/memory-model.rst#zone_device
+[__alloc_pages_nodemask]:https://github.com/torvalds/linux/blob/45e885c439e825c19f3a51e46ef8210984bc0a9c/mm/page_alloc.c#L4917
+[__find_buddy_pfn]:https://github.com/torvalds/linux/blob/5c8fe583cce542aa0b84adc939ce85293de36e5e/mm/internal.h#L174
+[setup_per_zone_wmarks]:https://github.com/torvalds/linux/blob/c76e02c59e13ae6c22cc091786d16c01bee23a14/mm/page_alloc.c#L7969
+[__setup_per_zone_wmarks]:https://github.com/torvalds/linux/blob/c76e02c59e13ae6c22cc091786d16c01bee23a14/mm/page_alloc.c#L7900
+[init_per_zone_wmark_min]:https://github.com/torvalds/linux/blob/c76e02c59e13ae6c22cc091786d16c01bee23a14/mm/page_alloc.c#L8002
+[watermark_scale_factor]:https://sysctl-explorer.net/vm/watermark_scale_factor
