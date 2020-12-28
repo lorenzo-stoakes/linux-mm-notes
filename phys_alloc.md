@@ -17,12 +17,43 @@ A more modern 32-bit device might only be capable of performing DMA within the
 lower 4GiB of physical memory so any allocations for these devices must be in
 this range.
 
+## Zone layout
+
 In order to preserve memory with specific properties such as this the physical
 memory is sub-divided into __zones__ - typically on an x86-64 system this will
 be `ZONE_DMA`, `ZONE_DMA32` and `ZONE_NORMAL`, with the 'normal' zone
 representing all physical memory that sits outside of the DMA/DMA32 zones.
 
-Each node is subdivided into these zones.
+There are additionally 2 'special' zones:
+
+* `ZONE_MOVABLE` - optionally available if the [kernelcore][kernelcore] and/or
+  [movablecore][movablecore] command line parameters are specified. The memory
+  in this zone is explicitly movable.
+* `ZONE_DEVICE` - contains memory identified as device-specific. This memory is
+  never free or available for any other use and must be explicitly set up by the
+  driver. See [ZONE_DEVICE documentation][zone_device-doc] for more details.
+
+Each node is subdivided into these zones, however lower memory zones will only
+be populated for node 0 as physical memory is addressed across all nodes.
+
+
+```
+ ^ node 0                               0 -> |---------------| ^
+ |                                           |    ZONE_DMA   | | 16 MiB
+ |                                 16 MiB -> |---------------| x
+ |                                           |   ZONE_DMA32  | | 4 GiB
+ | ^ node 1+                        4 GiB -> |---------------| x
+ | |                                         |  ZONE_NORMAL  | | total RAM - 4G16M - movable
+ | |                  total RAM - movable -> |---------------| x
+ | |                                         |  ZONE_MOVABLE | | movable
+ | |                            total RAM -> |---------------| x
+ | |                                         |  ZONE_DEVICE  | | device RAM
+ v v               total RAM + device RAM -> |---------------| v
+```
+
+If there is insufficient memory to fit in the range of a memory zone then that
+zone remains unpopulated, e.g. if a system has less than 4 GiB of RAM available
+then `ZONE_NORMAL` is empty.
 
 ## Node data structure
 
@@ -235,73 +266,127 @@ Each zone has 'spanned', 'present', and 'managed' page counts (viewable from
 ## Zone assignment
 
 The [__alloc_pages_nodemask()][__alloc_pages_nodemask] allocation algorithm
-(discussed in more detail below) which performs all physical memory allocations
-attempts to use the 'highest' zone specified by the Get Free Pages (GFP)
-flags. A standard allocation will set all zones as acceptable.
+(discussed in more detail below) is the function which performs all physical
+memory allocations. It attempts to use the 'highest' zone specified by the Get
+Free Pages (GFP) flags (which specify how an allocation should be performed,
+usually all zones are game).
 
 By 'highest' this is in reference to the value of the zone enums, which range in
 ascending order from the smaller lower memory regions (e.g. `ZONE_DMA`,
 `ZONE_DMA32`) to ones that span the rest of the physical memory.
 
 However if the allocation fails at the higher zone (e.g. `ZONE_NORMAL`) then the
-algorithm will try to allocate from the lower zones (E.g. `ZONE_DMA32`).
+algorithm will try to allocate from the lower zones (e.g. `ZONE_DMA32`,
+`ZONE_DMA`) utilising the low memory reserve mechanism to maintain a minimum
+number of free pages in each zone for zone-specific allocations.
 
-In order to avoid exhausting lower memory, the
-[lowmem_reserve_ratio][lowmem_reserve_ratio] mechanism is implemented to specify
-the proportion of pages that are reserved per-memory zone as specified via the
-`vm.lowmem_reserve_ratio` tunable.
+## Low memory reserve
 
-To do this, a number of pages is added to the minimum pages watermark for each
-zone determined by the original maximum zone that the allocation could have
-used.
+In order to avoid exhausting lower memory the
+[vm.lowmem_reserve_ratio][lowmem_reserve_ratio] tunable specifies per-zone
+ratios of memory to reserve in each zone.
 
-For example a tunable of `[256, 256, 32]` for `ZONE_DMA`, `ZONE_DMA32`,
-`ZONE_NORMAL` respectively implies that the minimum watermark must be expanded
-by 1/256, 1/256, and 1/32 of all managed pages in zones above the one being
-checked for allocations that have a maximum allowed zone of `ZONE_DMA`,
-`ZONE_DMA32`, and `ZONE_NORMAL` respectively (this is somewhat confusing!)
+The tunable is quite confusing - it is specified as a series of integers which
+specify the ratio of managed pages above the zone which are to be kept in
+reserve when an allocation is performed which uses a lower zone.
 
-You can observe the actual page counts listed under `protection`
-in `/proc/zoneinfo`, e.g. on my system the DMA32 zone indicates:
+For example:
+
+```
+[~]$ cat /proc/sys/vm/lowmem_reserve_ratio
+256    128    32    0
+```
+
+This indicates that we should reserve pages at the following ratios of the sum
+of all pages managed by zones higher than the zone we're reserving pages for:
+
+| Alloc at / Could alloc at | ZONE_DMA | ZONE_DMA32 | ZONE_NORMAL | ZONE_MOVABLE |
+|---------------------------|----------|------------|-------------|--------------|
+| ZONE_DMA | . | 1/256 | 1/256 | 1/256 |
+| ZONE_DMA32 | . | . | 1/128 | 1/128 |
+| ZONE_NORMAL | . | . | . | 1/32 |
+| ZONE_MOVABLE | . | . | . | . |
+
+The zones listed on the left are those that the allocation is occurring in, the
+zones listed at the top are the maximum zone that an allocation is permitted to
+be made in, e.g. if no GFP flags constrain which zone an allocation can be
+sourced from then `ZONE_MOVABLE` is the maximum zone we can allocate from and so
+we reference the last column. If the GFP flags indicated that the allocation
+must be in `ZONE_DMA32`or lower, then we reference the 2nd column, etc.
+
+No reservation need be made for allocations that are strictly only permitted in
+the zone being allocated in (e.g. `ZONE_DMA32` in `ZONE_DMA32`), so the reserve
+is not applied there. Also of course you cannot make an allocation that
+specifies a lower zone in a higher one (e.g. `ZONE_DMA` allocation in
+`ZONE_DMA32`) so in both cases these are marked with '.'s.
+
+The ratio is applied to the _sum_ of all _managed_ pages in zones _above_ the
+one being allocated in. This is because the ratio is designed to apply an
+increasing penalty for allocations which could have been allocated in a higher
+zone.
+
+Looking at a portion of the output of `/proc/zoneinfo` from my test system:
 
 ```
 Node 0, zone      DMA
-        ...
-        managed  3975
-        protection: (0, 907, 64235)
-...
+        managed  3977
+        protection: (0, 2991, 10163, 30084)
 Node 0, zone    DMA32
-        ...
-        managed  232262
-        protection: (0, 0, 63327)
-...
+        managed  765917
+        protection: (0, 0, 14344, 54185)
 Node 0, zone   Normal
-        managed  16211930
-        protection: (0, 0, 0)
+        managed  1836032
+        protection: (0, 0, 0, 159364)
+Node 0, zone  Movable
+        managed  5099663
+        protection: (0, 0, 0, 0)
 ```
 
-These are taken directly from the `lowmem_reserve` field in [struct zone][zone]
-and recalculated if the `vm.lowmem_reserve_ratio` tunable is altered (and on
-startup) via [setup_per_zone_lowmem_reserve()][setup_per_zone_lowmem_reserve].
+These 'protection' values indicate the actual number of pages reserved for
+allocations that could have been allocated at higher zones, e.g. `ZONE_DMA`
+reserves 2,991 pages for `ZONE_DMA32` allocations, 10,163 for `ZONE_NORMAL`
+allocations and 30,084 for `ZONE_MOVABLE` allocations (the latter values exceed
+managed pages in `ZONE_DMA` so in effect prevent allocations from these zones
+occurring in `ZONE_DMA`).
 
-The algorithm is designed such that all zones at or below the one being
-allocated from incur no reserved pages. For those greater, we sum all managed
-pages for the highest zone we could use and divide by the ratio of the zone we
-are intended to allocate from.
+'Reserving' pages is implemented by checking the sum of the minimum watermark
+and the relevant `lowmem_reserve` value.
 
-So for the DMA zone, if we could have allocated from `ZONE_NORMAL` there are
-232,262 + 16,211,930 = 16,444,192 managed pages we could have allocated from at
-higher zones. Dividing by the 256 ratio gives us 64,235 pages which is greater
-than the sum of all managed pages thus such allocations will always fail.
+In order to see how these protection values have derived from the ratios
+specified in the tunable, let's work out how to sum the managed pages _above_
+each zone:
 
-For DMA allocating from DMA32 we are left with 232,262 / 256 = 907 pages.
+| Alloc at / Could alloc at | ZONE_DMA | ZONE_DMA32 | ZONE_NORMAL | ZONE_MOVABLE |
+|---------------------------|----------|------------|-------------|--------------|
+| ZONE_DMA | . | DMA32 | DMA32 + NORMAL | DMA32 + NORMAL + MOVABLE |
+| ZONE_DMA32 | . | . | | NORMAL | NORMAL + MOVABLE |
+| ZONE_NORMAL | . | . | . | MOVABLE |
+| ZONE_MOVABLE | . | . | . | . |
 
-This way we are able to use lower zones if needed but reserving pages at each
-proportional to the number of pages managed by zones above.
+Taking the actual page counts:
 
-If there is insufficient memory to fit in the range of a memory zone then that
-zone remains unpopulated, e.g. if a system has less than 4 GiB of RAM available
-then `ZONE_NORMAL` is empty.
+| Alloc at / Could alloc at | ZONE_DMA | ZONE_DMA32 | ZONE_NORMAL | ZONE_MOVABLE |
+|---------------------------|----------|------------|-------------|--------------|
+| ZONE_DMA | . | 765,917 | 2,601,949 | 7,701,612 |
+| ZONE_DMA32 | . | . | | 1,836,032 | 6,935,695 |
+| ZONE_NORMAL | . | . | . | 5,099,663 |
+| ZONE_MOVABLE | . | . | . | . |
+
+And finally multiplying by the ratios from the first table:
+
+| Alloc at / Could alloc at | ZONE_DMA | ZONE_DMA32 | ZONE_NORMAL | ZONE_MOVABLE |
+|---------------------------|----------|------------|-------------|--------------|
+| ZONE_DMA | . | 2,991 | 10,163 | 30,084 |
+| ZONE_DMA32 | . | . | 14,344 | 54,185 |
+| ZONE_NORMAL | . | . | . | 159,364 |
+| ZONE_MOVABLE | . | . | . | . |
+
+Which matches the values reported by `/proc/zoneinfo`.
+
+These are used in the code directly from the `lowmem_reserve` field in [struct
+zone][zone] and recalculated if the `vm.lowmem_reserve_ratio` tunable is altered
+(and on startup) via
+[setup_per_zone_lowmem_reserve()][setup_per_zone_lowmem_reserve].
 
 ## Buddy allocator
 
@@ -317,7 +402,7 @@ The algorithm keeps a track of pages at each supported order level, starting
 with the largest supported order ([MAX_ORDER][MAX_ORDER], typically 11 = 2,048
 pages or 8 MiB) to the lowest.
 
-TBD
+TBD.
 
 [numa]:https://en.wikipedia.org/wiki/Non-uniform_memory_access
 [buddy]:https://en.wikipedia.org/wiki/Buddy_memory_allocation
@@ -326,4 +411,7 @@ TBD
 [MAX_ORDER]:https://github.com/torvalds/linux/blob/45e885c439e825c19f3a51e46ef8210984bc0a9c/include/linux/mmzone.h#L27
 [__alloc_pages_nodemask]:https://github.com/torvalds/linux/blob/45e885c439e825c19f3a51e46ef8210984bc0a9c/mm/page_alloc.c#L4917
 [lowmem_reserve_ratio]:https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/sysctl/vm.rst#lowmem_reserve_ratio
-[setup_per_zone_lowmem_reserve]:https://github.com/torvalds/linux/blob/45e885c439e825c19f3a51e46ef8210984bc0a9c/mm/page_alloc.c#L7791
+[setup_per_zone_lowmem_reserve]:https://github.com/torvalds/linux/blob/5c8fe583cce542aa0b84adc939ce85293de36e5e/mm/page_alloc.c#L7871
+[kernelcore]:https://github.com/torvalds/linux/blob/5c8fe583cce542aa0b84adc939ce85293de36e5e/Documentation/admin-guide/kernel-parameters.txt#L2128
+[movablecore]:https://github.com/torvalds/linux/blob/5c8fe583cce542aa0b84adc939ce85293de36e5e/Documentation/admin-guide/kernel-parameters.txt#L2918
+[zone_device-doc]:https://github.com/torvalds/linux/blob/master/Documentation/vm/memory-model.rst#zone_device
