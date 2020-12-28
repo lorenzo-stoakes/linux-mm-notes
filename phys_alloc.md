@@ -408,19 +408,66 @@ zone][zone] and recalculated if the `vm.lowmem_reserve_ratio` tunable is altered
 
 ## Buddy allocator
 
-Linux uses the [buddy allocator][buddy] algorithm invented in 1963 in order to
-allocate memory pages (at the smallest available page size), e.g. on x86-64
-4KiB.
+Linux uses a [buddy allocator][buddy] to allocate physical memory. This is a
+simple yet effective algorithm which allocates memory in `2^order` page blocks.
 
-The buddy allocator provides a number of pages equal to the 'order' of the
-allocation which is simply a power of 2. E.g. an order 3 allocation will provide
-2^3 = 8 pages, an order 0 will provide 2^0 = 1 page, etc.
+Each allocation aside from the top one ([MAX_ORDER][MAX_ORDER], typically 11 =
+2,048 pages or 8 MiB) is paired with a 'buddy' and when it is freed, the two are
+coalesced and freed at the next highest order, cascading as far as it can go.
 
-The algorithm keeps a track of pages at each supported order level, starting
-with the largest supported order ([MAX_ORDER][MAX_ORDER], typically 11 = 2,048
-pages or 8 MiB) to the lowest.
+The means for determining the buddy of a particular allocation is, by design,
+O(1) - this is a fundamental part of what makes a buddy allocator fast. Linux's
+is [__find_buddy_pfn()][__find_buddy_pfn]:
 
-TBD.
+```c
+/*
+ * Locate the struct page for both the matching buddy in our
+ * pair (buddy1) and the combined O(n+1) page they form (page).
+ *
+ * 1) Any buddy B1 will have an order O twin B2 which satisfies
+ * the following equation:
+ *     B2 = B1 ^ (1 << O)
+ * For example, if the starting buddy (buddy2) is #8 its order
+ * 1 buddy is #10:
+ *     B2 = 8 ^ (1 << 1) = 8 ^ 2 = 10
+ *
+ * 2) Any buddy B will have an order O+1 parent P which
+ * satisfies the following equation:
+ *     P = B & ~(1 << O)
+ *
+ * Assumption: *_mem_map is contiguous at least up to MAX_ORDER
+ */
+static inline unsigned long
+__find_buddy_pfn(unsigned long page_pfn, unsigned int order)
+{
+    return page_pfn ^ (1 << order);
+}
+```
+
+We determine buddies by simply flipping the `order`th bit of the PFN.
+
+### Page allocation
+
+The [__alloc_pages_nodemask()][__alloc_pages_nodemask] function is the core
+function performing page allocation.
+
+### Allocator initialisation
+
+```
+start_kernel()
+mm_init()
+mem_init()
+memblock_free_all()
+free_low_memory_core_early()
+__free_memory_core()
+__free_pages_memory()
+memblock_free_pages()
+__free_pages_core()
+__free_pages_ok()
+free_one_page()
+__free_one_page()
+```
+
 
 [numa]:https://en.wikipedia.org/wiki/Non-uniform_memory_access
 [buddy]:https://en.wikipedia.org/wiki/Buddy_memory_allocation
