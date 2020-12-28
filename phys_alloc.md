@@ -240,27 +240,29 @@ struct zone {
 Each zone has 'watermarks' which determine reclaim behaviour (the kernel
 mechanisms for freeing up physical memory), all expressed in pages:
 
-* Minimum - If free pages are less than or equal to the minimum watermark +
-  lowmem reserve (see below) then allocation in this zone is not permitted (and
-  memory reclaim might commence).
+* __Minimum__ - If free pages are less than or equal to the minimum watermark +
+  lowmem reserve (see below) then allocation in this zone is not permitted and
+  direct memory reclaim can occur to attempt to free sufficient pages to permit
+  allocation.
 
-* Low - When free pages reach this level then the `kswapd` process wakes up and
+* __Low__ - When free pages reach this level then the `kswapd` process wakes up and
   performs indirect reclaim of pages.
 
-* High - At free pages above this point `kswapd` can sleep for this node/zone.
+* __High__ - If free pages are equal to or greater than this value `kswapd` can
+  sleep for this node/zone.
 
 ## Zone page stats
 
 Each zone has 'spanned', 'present', and 'managed' page counts (viewable from
 `/proc/zoneinfo`):
 
-* __spanned__ is the number of pages contained within the physical address range
+* __Spanned__ - The number of pages contained within the physical address range
   of the zone.
 
-* __present__ is the number of physical pages that actually exist in
+* __Present__ - The number of physical pages that actually exist in
   the range.
 
-* __managed__ is the number of present pages that are currently under the
+* __Managed__ - The number of present pages that are currently under the
   control of the physical memory allocator (i.e. not otherwise reserved).
 
 ## Zone assignment
