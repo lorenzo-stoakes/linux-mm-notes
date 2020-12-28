@@ -50,13 +50,15 @@ arch/x86/mm/numa.c:alloc_node_data()
 preallocate_vmalloc_pages()
 ```
 
-* What is the meaning of e.g. ZONE_DMA in a second node, if the physical memory
-  there starts at a later PA? Or does the socket in a separate node perceive the
-  PAs as starting from 0 again (surely not due to page tables etc.)?
-
 * Which code is responsible for assigning pages to zones + nodes?
 
 `numa_init()`?
+
+* Is there a way to determine how many movable pages there are specifically
+  per-zone/order/etc.? It seems the `show_free_areas()` output lists _all_
+  migrate types available at each order level.
+
+* `ioremap()` :)
 
 ## virt_layout
 
@@ -96,11 +98,21 @@ e820!
 /proc/vmallocinfo
 /proc/pressure/memory
 /proc/slabinfo
+/proc/iomem
 
 /proc/*/maps
 /proc/*/smaps
 /proc/*/status
 /proc/*/numa_maps
+
+From /proc/meminfo:
+DirectMap4k:       32628 kB
+DirectMap2M:     4161536 kB
+DirectMap1G:    29360128 kB
 ```
 
 Tunables... https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/sysctl/vm.rst
+
+## articles
+
+[lwn-zone-device]:https://lwn.net/Articles/717555/
