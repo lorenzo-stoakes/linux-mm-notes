@@ -359,7 +359,7 @@ each zone:
 | Alloc at / Could alloc at | ZONE_DMA | ZONE_DMA32 | ZONE_NORMAL | ZONE_MOVABLE |
 |---------------------------|----------|------------|-------------|--------------|
 | ZONE_DMA | . | DMA32 | DMA32 + NORMAL | DMA32 + NORMAL + MOVABLE |
-| ZONE_DMA32 | . | . | | NORMAL | NORMAL + MOVABLE |
+| ZONE_DMA32 | . | . | NORMAL | NORMAL + MOVABLE |
 | ZONE_NORMAL | . | . | . | MOVABLE |
 | ZONE_MOVABLE | . | . | . | . |
 
@@ -368,7 +368,7 @@ Taking the actual page counts:
 | Alloc at / Could alloc at | ZONE_DMA | ZONE_DMA32 | ZONE_NORMAL | ZONE_MOVABLE |
 |---------------------------|----------|------------|-------------|--------------|
 | ZONE_DMA | . | 765,917 | 2,601,949 | 7,701,612 |
-| ZONE_DMA32 | . | . | | 1,836,032 | 6,935,695 |
+| ZONE_DMA32 | . | . | 1,836,032 | 6,935,695 |
 | ZONE_NORMAL | . | . | . | 5,099,663 |
 | ZONE_MOVABLE | . | . | . | . |
 
