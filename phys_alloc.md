@@ -242,8 +242,8 @@ mechanisms for freeing up physical memory), all expressed in pages:
 
 * __Minimum__ - If free pages are less than or equal to the minimum watermark +
   lowmem reserve (see below) then allocation in this zone is not permitted and
-  direct memory reclaim can occur to attempt to free sufficient pages to permit
-  allocation.
+  direct memory reclaim can occur to attempt to free sufficient pages to reach
+  the watermark again.
 
 * __Low__ - When free pages reach this level then the `kswapd` process wakes up and
   performs indirect reclaim of pages.
