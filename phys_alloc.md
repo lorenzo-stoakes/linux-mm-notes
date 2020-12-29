@@ -636,12 +636,12 @@ __find_buddy_pfn(unsigned long page_pfn, unsigned int order)
 
 We determine buddies by simply flipping the `order`th bit of the PFN.
 
-### Page allocation
-
-The [__alloc_pages_nodemask()][__alloc_pages_nodemask] function is the core
-function performing page allocation.
-
 ### Allocator initialisation
+
+Once the kernel has set up the [direct physical mapping][direct-phys-mapping],
+the [struct page][page]s and the vmemmap to the struct pages, all of the
+[memblock][memblock] allocated memory is put into the buddy allocator by each
+individual page being freed via the following call stack:
 
 ```
 start_kernel()
@@ -657,6 +657,11 @@ __free_pages_ok()
 free_one_page()
 __free_one_page()
 ```
+
+### Page allocation
+
+The [__alloc_pages_nodemask()][__alloc_pages_nodemask] function is the core
+function performing page allocation.
 
 [numa]:https://en.wikipedia.org/wiki/Non-uniform_memory_access
 [buddy]:https://en.wikipedia.org/wiki/Buddy_memory_allocation
@@ -688,3 +693,4 @@ __free_one_page()
 [page_to_pfn]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/include/asm-generic/memory_model.h#L81
 [__pfn_to_page]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/include/asm-generic/memory_model.h#L54
 [__page_to_pfn]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/include/asm-generic/memory_model.h#L55
+[direct-phys-mapping]:/phys_alloc.md#direct-physical-memory-mapping
