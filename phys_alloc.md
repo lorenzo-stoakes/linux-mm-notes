@@ -693,4 +693,4 @@ function performing page allocation.
 [page_to_pfn]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/include/asm-generic/memory_model.h#L81
 [__pfn_to_page]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/include/asm-generic/memory_model.h#L54
 [__page_to_pfn]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/include/asm-generic/memory_model.h#L55
-[direct-phys-mapping]:/phys_alloc.md#direct-physical-memory-mapping
+[direct-phys-mapping]:/virt_layout.md#direct-physical-memory-mapping
