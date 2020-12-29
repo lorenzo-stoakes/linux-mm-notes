@@ -567,6 +567,8 @@ and eventually invoking [__init_single_page()][__init_single_page] for each
 individual `struct page` via the following call stack:
 
 ```
+setup_arch()
+x86_init.paging.pagetable_init()
 paging_init()
 zone_sizes_init()
 free_area_init()
