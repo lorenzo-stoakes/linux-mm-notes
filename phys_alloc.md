@@ -589,8 +589,8 @@ which both invoke the memory model-specific [__pfn_to_page()][__pfn_to_page] and
 
 ```c
 /* memmap is virtually contiguous.  */
-#define __pfn_to_page(pfn)	(vmemmap + (pfn))
-#define __page_to_pfn(page)	(unsigned long)((page) - vmemmap)
+#define __pfn_to_page(pfn)  (vmemmap + (pfn))
+#define __page_to_pfn(page) (unsigned long)((page) - vmemmap)
 ```
 
 Since x86-64 implements `CONFIG_SPARSEMEM_VMEMMAP` and thus provides virtually
