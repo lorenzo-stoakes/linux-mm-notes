@@ -406,6 +406,194 @@ zone][zone] and recalculated if the `vm.lowmem_reserve_ratio` tunable is altered
 (and on startup) via
 [setup_per_zone_lowmem_reserve()][setup_per_zone_lowmem_reserve].
 
+## struct page
+
+Physical pages are described by 64-byte [struct page][page] objects each of
+which represent a 4 KiB page (larger page sizes are represented by a compound
+set of page elements).
+
+The struct itself is consists of a set of flags and a series of
+context-dependent unions:
+
+```c
+struct page {
+    unsigned long flags;        /* Atomic flags, some possibly
+                                 * updated asynchronously */
+    /*
+     * Five words (20/40 bytes) are available in this union.
+     * WARNING: bit 0 of the first word is used for PageTail(). That
+     * means the other users of this union MUST NOT use the bit to
+     * avoid collision and false-positive PageTail().
+     */
+    union {
+        struct {    /* Page cache and anonymous pages */
+            /**
+             * @lru: Pageout list, eg. active_list protected by
+             * lruvec->lru_lock.  Sometimes used as a generic list
+             * by the page owner.
+             */
+            struct list_head lru;
+            /* See page-flags.h for PAGE_MAPPING_FLAGS */
+            struct address_space *mapping;
+            pgoff_t index;      /* Our offset within mapping. */
+            /**
+             * @private: Mapping-private opaque data.
+             * Usually used for buffer_heads if PagePrivate.
+             * Used for swp_entry_t if PageSwapCache.
+             * Indicates order in the buddy system if PageBuddy.
+             */
+            unsigned long private;
+        };
+        struct {    /* page_pool used by netstack */
+            /**
+             * @dma_addr: might require a 64-bit value even on
+             * 32-bit architectures.
+             */
+            dma_addr_t dma_addr;
+        };
+        struct {    /* slab, slob and slub */
+            union {
+                struct list_head slab_list;
+                struct {    /* Partial pages */
+                    struct page *next;
+                    int pages;  /* Nr of pages left */
+                    int pobjects;   /* Approximate count */
+                };
+            };
+            struct kmem_cache *slab_cache; /* not slob */
+            /* Double-word boundary */
+            void *freelist;     /* first free object */
+            union {
+                void *s_mem;    /* slab: first object */
+                unsigned long counters;     /* SLUB */
+                struct {            /* SLUB */
+                    unsigned inuse:16;
+                    unsigned objects:15;
+                    unsigned frozen:1;
+                };
+            };
+        };
+        struct {    /* Tail pages of compound page */
+            unsigned long compound_head;    /* Bit zero is set */
+
+            /* First tail page only */
+            unsigned char compound_dtor;
+            unsigned char compound_order;
+            atomic_t compound_mapcount;
+            unsigned int compound_nr; /* 1 << compound_order */
+        };
+        struct {    /* Second tail page of compound page */
+            unsigned long _compound_pad_1;  /* compound_head */
+            atomic_t hpage_pinned_refcount;
+            /* For both global and memcg */
+            struct list_head deferred_list;
+        };
+        struct {    /* Page table pages */
+            unsigned long _pt_pad_1;    /* compound_head */
+            pgtable_t pmd_huge_pte; /* protected by page->ptl */
+            unsigned long _pt_pad_2;    /* mapping */
+            union {
+                struct mm_struct *pt_mm; /* x86 pgds only */
+                atomic_t pt_frag_refcount; /* powerpc */
+            };
+            spinlock_t ptl;
+        };
+        struct {    /* ZONE_DEVICE pages */
+            /** @pgmap: Points to the hosting device page map. */
+            struct dev_pagemap *pgmap;
+            void *zone_device_data;
+            /*
+             * ZONE_DEVICE private pages are counted as being
+             * mapped so the next 3 words hold the mapping, index,
+             * and private fields from the source anonymous or
+             * page cache page while the page is migrated to device
+             * private memory.
+             * ZONE_DEVICE MEMORY_DEVICE_FS_DAX pages also
+             * use the mapping, index, and private fields when
+             * pmem backed DAX files are mapped.
+             */
+        };
+
+        /** @rcu_head: You can use this to free a page by RCU. */
+        struct rcu_head rcu_head;
+    };
+
+    union {     /* This union is 4 bytes in size. */
+        /*
+         * If the page can be mapped to userspace, encodes the number
+         * of times this page is referenced by a page table.
+         */
+        atomic_t _mapcount;
+
+        /*
+         * If the page is neither PageSlab nor mappable to userspace,
+         * the value stored here may help determine what this page
+         * is used for.  See page-flags.h for a list of page types
+         * which are currently stored here.
+         */
+        unsigned int page_type;
+
+        unsigned int active;        /* SLAB */
+        int units;          /* SLOB */
+    };
+
+    /* Usage count. *DO NOT USE DIRECTLY*. See page_ref.h */
+    atomic_t _refcount;
+
+#ifdef CONFIG_MEMCG
+    unsigned long memcg_data;
+#endif
+} _struct_page_alignment;
+```
+
+### Initial struct page allocation
+
+x86-64 uses the [sparse memory model][sparsemem] which divides contiguous sets
+of `struct page`s into sections and, as x86-64 specifies
+`CONFIG_SPARSEMEM_VMEMMAP`, provides a virtual mapping so `struct page`s can be
+accessed as a simple offset.
+
+The process starts at [sparse_init()][sparse_init] (called via `setup_arch() ->
+x86_init.paging.pagetable_init() -> paging_init()`) which in turn invokes
+[sparse_init_nid()][sparse_init_nid] for each node. This allocates early boot
+[memblock][memblock] memory via [sparse_buffer_init()][sparse_buffer_init] and
+populates each section via
+[__populate_section_memmap()][__populate_section_memmap] and
+[vmemmap_populate()][vmemmap_populate] which does the heavy lifting.
+
+Note that the [struct page][page]s allocated here are uninitialised. The
+initialisation occurs elsewhere, also called from [paging_init()][paging_init]
+and eventually invoking [__init_single_page()][__init_single_page] for each
+individual `struct page` via the following call stack:
+
+```
+paging_init()
+zone_sizes_init()
+free_area_init()
+free_area_init_node()
+free_area_init_core()
+memmap_init()
+memmap_init_zone()
+__meminit()
+__init_single_page()
+```
+
+### Accessing struct pages
+
+Once the pages have been setup they can be accessed via
+[pfn_to_page()][pfn_to_page] (the inverse via [page_to_pfn()][page_to_pfn])
+which both invoke the memory model-specific [__pfn_to_page()][__pfn_to_page] and
+[__page_to_pfn()][__page_to_pfn]:
+
+```c
+/* memmap is virtually contiguous.  */
+#define __pfn_to_page(pfn)	(vmemmap + (pfn))
+#define __page_to_pfn(page)	(unsigned long)((page) - vmemmap)
+```
+
+Since x86-64 implements `CONFIG_SPARSEMEM_VMEMMAP` and thus provides virtually
+contiguous `struct page`s this is a simple offset.
+
 ## Buddy allocator
 
 Linux uses a [buddy allocator][buddy] to allocate physical memory. This is a
@@ -468,7 +656,6 @@ free_one_page()
 __free_one_page()
 ```
 
-
 [numa]:https://en.wikipedia.org/wiki/Non-uniform_memory_access
 [buddy]:https://en.wikipedia.org/wiki/Buddy_memory_allocation
 [pg_data_t]:https://github.com/torvalds/linux/blob/45e885c439e825c19f3a51e46ef8210984bc0a9c/include/linux/mmzone.h#L726
@@ -485,3 +672,17 @@ __free_one_page()
 [__setup_per_zone_wmarks]:https://github.com/torvalds/linux/blob/c76e02c59e13ae6c22cc091786d16c01bee23a14/mm/page_alloc.c#L7900
 [init_per_zone_wmark_min]:https://github.com/torvalds/linux/blob/c76e02c59e13ae6c22cc091786d16c01bee23a14/mm/page_alloc.c#L8002
 [watermark_scale_factor]:https://sysctl-explorer.net/vm/watermark_scale_factor
+[page]:https://github.com/torvalds/linux/blob/c76e02c59e13ae6c22cc091786d16c01bee23a14/include/linux/mm_types.h#L69
+[sparsemem]:https://github.com/torvalds/linux/blob/master/Documentation/vm/memory-model.rst#sparsemem
+[sparse_init]:https://github.com/torvalds/linux/blob/c76e02c59e13ae6c22cc091786d16c01bee23a14/mm/sparse.c#L575
+[sparse_init_nid]:https://github.com/torvalds/linux/blob/c76e02c59e13ae6c22cc091786d16c01bee23a14/mm/sparse.c#L523
+[sparse_buffer_init]:https://github.com/torvalds/linux/blob/c76e02c59e13ae6c22cc091786d16c01bee23a14/mm/sparse.c#L474
+[memblock]:https://0xax.gitbooks.io/linux-insides/content/MM/linux-mm-1.html
+[__populate_section_memmap]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/mm/sparse-vmemmap.c#L251
+[vmemmap_populate]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/arch/x86/mm/init_64.c#L1554
+[paging_init]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/arch/x86/mm/init_64.c#L813
+[__init_single_page]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/mm/page_alloc.c#L1451
+[pfn_to_page]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/include/asm-generic/memory_model.h#L82
+[page_to_pfn]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/include/asm-generic/memory_model.h#L81
+[__pfn_to_page]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/include/asm-generic/memory_model.h#L54
+[__page_to_pfn]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/include/asm-generic/memory_model.h#L55
