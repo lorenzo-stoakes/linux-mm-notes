@@ -634,7 +634,42 @@ __find_buddy_pfn(unsigned long page_pfn, unsigned int order)
 }
 ```
 
-We determine buddies by simply flipping the `order`th bit of the PFN.
+The PFN of a higher order allocation is equal to the lowest page in the block,
+so we can determine buddies by simply flipping the `order`th bit of the PFN. The
+PFN of a page of a certain order will be aligned to `2^order` as each higher
+order level comprises all the pages below it.
+
+Visually:
+
+```
+<--------------------------------------------------------------> order 6
+<------------------------------><------------------------------> order 5
+<--------------<>--------------><--------------<>--------------> order 4
+<------<>------><------<>------><------<>------><------<>------> order 3
+<--<>--><--<>--><--<>--><--<>--><--<>--><--<>--><--<>--><--<>--> order 2
+<<>><<>><<>><<>><<>><<>><<>><<>><<>><<>><<>><<>><<>><<>><<>><<>> order 1
+<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> order 0
+3210987654321098765432109876543210987654321098765432109876543210 PFN
+   6         5         4         3         2         1
+```
+
+Here each pair of buddies is represented by < and > characters. So for example,
+order 3 buddies exist at (0, 8), (16, 24), etc.
+
+When pages are freed in the buddy allocator the buddy is checked and, if free,
+the two are coalesced into a block at the order level above. The process is
+repeated until a buddy is found not to be free. This way memory of each order is
+efficiently refilled as blocks are freed.
+
+When pages are allocated the free list at the requested order level is checked -
+if a free block can be found then that is returned otherwise the order levels
+above are checked until an available block is located. This block is then split
+until a block of the order required is obtained and this is returned.
+
+As a consequence of this at least 1 additional block is left at each level above
+the allocation meaning that future allocations can be performed more
+efficiently. It also ensures that block sizes are divided according to need (and
+coalesced again as soon as blocks at any given order are no longer required).
 
 ### Allocator initialisation
 
