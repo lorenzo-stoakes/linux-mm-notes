@@ -663,12 +663,111 @@ moved around. The possible values (defined in [enum migratetype][migratetype] ar
   pages in a state appropriate for CMA usage.
 * `MIGRATE_ISOLATE` - Prevents pages from being migrated elsewhere.
 
-### Initial struct page allocation
+### Sparse memory model and memory sections
 
 x86-64 uses the [sparse memory model][sparsemem] which divides contiguous sets
-of `struct page`s into sections and, as x86-64 specifies
-`CONFIG_SPARSEMEM_VMEMMAP`, provides a virtual mapping so `struct page`s can be
-accessed as a simple offset.
+of `struct page`s into sections of [PAGES_PER_SECTION][PAGES_PER_SECTION] pages
+each, as x86-64 specifies `CONFIG_SPARSEMEM_VMEMMAP`, provides a virtual mapping
+so `struct page`s can be accessed as a simple offset.
+
+The information per-memory section is described by [struct
+mem_section][mem_section] (pared down for clarity):
+
+```c
+struct mem_section {
+	/*
+	 * This is, logically, a pointer to an array of struct
+	 * pages.  However, it is stored with some other magic.
+	 * (see sparse.c::sparse_init_one_section())
+	 *
+	 * Additionally during early boot we encode node id of
+	 * the location of the section here to guide allocation.
+	 * (see sparse.c::memory_present())
+	 *
+	 * Making it a UL at least makes someone do a cast
+	 * before using it wrong.
+	 */
+	unsigned long section_mem_map;
+
+	struct mem_section_usage *usage;
+};
+```
+
+Each `mem_section` has a [struct mem_section_usage][mem_section_usage] (cleaned
+up to use x86-64 config):
+
+```c
+struct mem_section_usage {
+	DECLARE_BITMAP(subsection_map, SUBSECTIONS_PER_SECTION);
+
+	/* See declaration of similar field in struct zone */
+	unsigned long pageblock_flags[0];
+};
+```
+
+This puts `pageblock_flags[]` at the end of the `mem_section_usage` structure
+whose size is determined by [mem_section_usage_size()][mem_section_usage_size]:
+
+```c
+size_t mem_section_usage_size(void)
+{
+	return sizeof(struct mem_section_usage) + usemap_size();
+}
+
+...
+
+static unsigned long usemap_size(void)
+{
+	return BITS_TO_LONGS(SECTION_BLOCKFLAGS_BITS) * sizeof(unsigned long);
+}
+
+...
+
+#define SECTION_BLOCKFLAGS_BITS \
+	((1UL << (PFN_SECTION_SHIFT - pageblock_order)) * NR_PAGEBLOCK_BITS)
+```
+
+For a standard x86-64 configuration `pageblock_order` is equal to the difference
+between `PMD_SHIFT` and `PAGE_SHIFT` i.e. 9, `PFN_SECTION_SHIFT` is equal to the
+difference between `SECTION_SIZE_BITS` (27) and `PAGE_SHIFT` (12)
+i.e. 15. `NR_PAGEBLOCK_BITS` is equal to 4 so we are left with ((1 << (15 -
+9)) * 4) = 64 * 4 = 256, resulting in 4 * 8 = 32 bytes `usemap_size()`.
+
+This places `PAGES_PER_SECTION = 2 ^ PFN_SECTION_SHIFT = 2^15` = 32,768 pages in
+each section (128 MiB at a time).
+
+#### Initialisation
+
+[sparse_init()][sparse_init] initialises the section data via
+[memblocks_present()][memblocks_present] which in turn invokes
+[memory_present()][memory_present] for each contiguous range of physical
+memory as provided by [memblock][memblock].
+
+`memory_present()` initialises each section via the following loop:
+
+```c
+    for (pfn = start; pfn < end; pfn += PAGES_PER_SECTION) {
+        unsigned long section = pfn_to_section_nr(pfn);
+        struct mem_section *ms;
+
+        sparse_index_init(section, nid);
+        set_section_nid(section, nid);
+
+        ms = __nr_to_section(section);
+        if (!ms->section_mem_map) {
+            ms->section_mem_map = sparse_encode_early_nid(nid) |
+                            SECTION_IS_ONLINE;
+            section_mark_present(ms);
+        }
+    }
+```
+
+`sparse_init()` invokes [sparse_init_nid()][sparse_init_nid] where the usage
+struct is allocated by
+[sparse_early_usemaps_alloc_pgdat_section()][sparse_early_usemaps_alloc_pgdat_section]
+and assigned in [sparse_init_one_section()][sparse_init_one_section].
+
+### Initial struct page allocation
 
 The process starts at [sparse_init()][sparse_init] (called via `setup_arch() ->
 x86_init.paging.pagetable_init() -> paging_init()`) which in turn invokes
@@ -898,3 +997,11 @@ function performing page allocation.
 [migratetype]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L41
 [per_cpu_pages]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L320
 [lwn-highatomic]:https://lwn.net/Articles/658081/
+[mem_section]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L1199
+[mem_section_usage]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L1187
+[mem_section_usage_size]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/sparse.c#L342
+[sparse_early_usemaps_alloc_pgdat_section]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/sparse.c#L421
+[sparse_init_one_section]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/sparse.c#L327
+[memblocks_present]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/sparse.c#L292
+[memory_present]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/sparse.c#L252
+[PAGES_PER_SECTION]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L1149
