@@ -231,7 +231,9 @@ There are also a few other predicates that don't rely on specific flags:
   __128 PiB__ of address space. Linux divides this into __64 PiB__ of userland
   address space and __64 PiB__ of kernel address space.  A direct memory mapping
   of all physical memory of 32 PiB is present in the kernel address space so the
-  practical maximum memory capacity is __32 PiB__.
+  practical maximum memory capacity is __32 PiB__. However it's important to
+  note that the current implementation can only access 52 bits i.e. 4 PiB of
+  RAM as defined in [MAX_PHYSMEM_BITS][MAX_PHYSMEM_BITS].
 
 ## Address space layout
 
@@ -1228,3 +1230,5 @@ will be properly accounted for.
 [ref0]:https://en.wikipedia.org/wiki/Intel_5-level_paging
 [ref1]:https://0xax.gitbooks.io/linux-insides/content/
 [ref2]:https://0xax.gitbooks.io/linux-insides/content/Initialization/linux-initialization-1.html
+
+[MAX_PHYSMEM_BITS]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/arch/x86/include/asm/sparsemem.h#L27
