@@ -25,13 +25,13 @@ is enabled.
 
 ### Levels
 
-| Level | Type | Count | Shift | Description |
-|-------|------|-------|-------|-------------|
-| PGD | [pgd_t][1] | [PTRS_PER_PGD][6] (512) | [PGDIR_SHIFT][13] (48 or 39)\* | Page Global Directory |
-| P4D | [p4d_t][2] | [PTRS_PER_P4D][7] (512 or 1) | [P4D_SHIFT][14] (39) | Page 4 Directory\* |
-| PUD | [pud_t][3] | [PTRS_PER_PUD][10] (512) | [PUD_SHIFT][14] (30) | Page Upper Directory \*\* |
-| PMD | [pmd_t][4] | [PTRS_PER_PMD][11] (512) | [PMD_SHIFT][15] (21) | Page Middle Directory\*\* |
-| PTE | [pte_t][5] | [PTRS_PER_PTE][12] (512) | [PAGE_SHIFT][16] (12) | Page Table Entry directory |
+| Level | Type       | Count                        | Shift                          | Description                |
+|-------|------------|------------------------------|--------------------------------|----------------------------|
+| PGD   | [pgd_t][1] | [PTRS_PER_PGD][6] (512)      | [PGDIR_SHIFT][13] (48 or 39)\* | Page Global Directory      |
+| P4D   | [p4d_t][2] | [PTRS_PER_P4D][7] (512 or 1) | [P4D_SHIFT][14] (39)           | Page 4 Directory\*         |
+| PUD   | [pud_t][3] | [PTRS_PER_PUD][10] (512)     | [PUD_SHIFT][14] (30)           | Page Upper Directory \*\*  |
+| PMD   | [pmd_t][4] | [PTRS_PER_PMD][11] (512)     | [PMD_SHIFT][15] (21)           | Page Middle Directory\*\*  |
+| PTE   | [pte_t][5] | [PTRS_PER_PTE][12] (512)     | [PAGE_SHIFT][16] (12)          | Page Table Entry directory |
 
 \* The number of P4D entries depends on whether `CONFIG_X86_5LEVEL` is set and
 whether the hardware supports it. `PTRS_PER_P4D` is stored in the global
@@ -143,27 +143,27 @@ to the page (which we can later clear).
 There are some flags that aggregate a number of flags to represent common page
 flag configurations located at [arch/x86/include/asm/pgtable_types.h][17]:
 
-| Name | PRESENT | RW | USER | ACCESSED | NX | DIRTY | PSE | GLOBAL | PWT | PCD |
-|------|---------|----|------|----------|----|-------|-----|--------|-----|-----|
-| PAGE_NONE |  |  |  | x |  |  |  | x |  |  |
-| PAGE_SHARED | x | x | x | x | x |  |  |  |  |  |
-| PAGE_SHARED_EXEC | x | x | x | x |  |  |  |  |  |  |
-| PAGE_COPY_NOEXEC | x |  | x | x | x |  |  |  |  |  |
-| PAGE_COPY_EXEC | x |  | x | x |  |  |  |  |  |  |
-| PAGE_COPY | x |  | x | x | x |  |  |  |  |  |
-| PAGE_READONLY | x |  | x | x | x |  |  |  |  |  |
-| PAGE_READONLY_EXEC | x |  | x | x |  |  |  |  |  |  |
-| PAGE_KERNEL | x | x |  | x | x | x |  | x |  |  |
-| PAGE_KERNEL_EXEC | x | x |  | x |  | x |  | x |  |  |
-| _KERN_PG_TABLE | x | x |  | x |  | x |  |  |  |  |
-| _PAGE_TABLE | x | x | x | x |  | x |  |  |  |  |
-| PAGE_KERNEL_RO | x |  |  | x | x | x |  | x |  |  |
-| PAGE_KERNEL_ROX | x |  |  | x |  | x |  | x |  |  |
-| PAGE_KERNEL_NOCACHE | x | x |  | x | x | x |  | x |  | x |
-| PAGE_KERNEL_VVAR | x |  | x | x | x | x |  | x |  |  |
-| PAGE_KERNEL_LARGE | x | x |  | x | x | x | x | x |  |  |
-| PAGE_KERNEL_LARGE_EXEC | x | x |  | x |  | x | x | x |  |  |
-| PAGE_KERNEL_WP | x | x |  | x | x | x |  | x | x |  |
+| Name                   | PRESENT | RW | USER | ACCESSED | NX | DIRTY | PSE | GLOBAL | PWT | PCD |
+|------------------------|---------|----|------|----------|----|-------|-----|--------|-----|-----|
+| PAGE_NONE              |         |    |      | x        |    |       |     | x      |     |     |
+| PAGE_SHARED            | x       | x  | x    | x        | x  |       |     |        |     |     |
+| PAGE_SHARED_EXEC       | x       | x  | x    | x        |    |       |     |        |     |     |
+| PAGE_COPY_NOEXEC       | x       |    | x    | x        | x  |       |     |        |     |     |
+| PAGE_COPY_EXEC         | x       |    | x    | x        |    |       |     |        |     |     |
+| PAGE_COPY              | x       |    | x    | x        | x  |       |     |        |     |     |
+| PAGE_READONLY          | x       |    | x    | x        | x  |       |     |        |     |     |
+| PAGE_READONLY_EXEC     | x       |    | x    | x        |    |       |     |        |     |     |
+| PAGE_KERNEL            | x       | x  |      | x        | x  | x     |     | x      |     |     |
+| PAGE_KERNEL_EXEC       | x       | x  |      | x        |    | x     |     | x      |     |     |
+| _KERN_PG_TABLE         | x       | x  |      | x        |    | x     |     |        |     |     |
+| _PAGE_TABLE            | x       | x  | x    | x        |    | x     |     |        |     |     |
+| PAGE_KERNEL_RO         | x       |    |      | x        | x  | x     |     | x      |     |     |
+| PAGE_KERNEL_ROX        | x       |    |      | x        |    | x     |     | x      |     |     |
+| PAGE_KERNEL_NOCACHE    | x       | x  |      | x        | x  | x     |     | x      |     | x   |
+| PAGE_KERNEL_VVAR       | x       |    | x    | x        | x  | x     |     | x      |     |     |
+| PAGE_KERNEL_LARGE      | x       | x  |      | x        | x  | x     | x   | x      |     |     |
+| PAGE_KERNEL_LARGE_EXEC | x       | x  |      | x        |    | x     | x   | x      |     |     |
+| PAGE_KERNEL_WP         | x       | x  |      | x        | x  | x     |     | x      | x   |     |
 
 ### Page size
 
@@ -183,26 +183,26 @@ flag configurations located at [arch/x86/include/asm/pgtable_types.h][17]:
 
 The predicates are declared in [arch/x86/include/asm/pgtable.h][18]
 
-| Flag | G | 4 | U | M | T | Function |
-|------|---|---|---|---|---|----------|
-| _PAGE_PRESENT | x | x | x | x | x | `pXX_present()` |
-| _PAGE_RW |  |  | x | x | x | `pXX_write()` |
-| _PAGE_USER |  |  |  |  |  | N/A |
-| _PAGE_PWT |  |  |  |  |  | N/A |
-| _PAGE_PCD |  |  |  |  |  | N/A |
-| _PAGE_ACCESSED | | | x | x | x | `pXX_young()` |
-| _PAGE_DIRTY | | | x | x | x | `pXX_dirty()` |
-| _PAGE_PSE | | | x | x |  | `pXX_huge()` or `pXX_large()` \* |
-| _PAGE_GLOBAL | | | |  | x | `pte_global()` |
-| _PAGE_SPECIAL | | | |  | x | `pte_special()` |
-| _PAGE_UFFD_WP | | | | x | x | `pXX_uffd_wp()` |
-| _PAGE_SOFT_DIRTY | | | x | x | x | `pXX_soft_dirty()` |
-| _PAGE_DEVMAP | | | x | x | x | `pXX_devmap()` |
-| _PAGE_PKEY_BIT0 |  |  |  |  |  | N/A |
-| _PAGE_PKEY_BIT1 |  |  |  |  |  | N/A |
-| _PAGE_PKEY_BIT2 |  |  |  |  |  | N/A |
-| _PAGE_PKEY_BIT3 |  |  |  |  |  | N/A |
-| _PAGE_NX |  |  |  |  | x | `pte_exec()` |
+| Flag             | G | 4 | U | M | T | Function                         |
+|------------------|---|---|---|---|---|----------------------------------|
+| _PAGE_PRESENT    | x | x | x | x | x | `pXX_present()`                  |
+| _PAGE_RW         |   |   | x | x | x | `pXX_write()`                    |
+| _PAGE_USER       |   |   |   |   |   | N/A                              |
+| _PAGE_PWT        |   |   |   |   |   | N/A                              |
+| _PAGE_PCD        |   |   |   |   |   | N/A                              |
+| _PAGE_ACCESSED   |   |   | x | x | x | `pXX_young()`                    |
+| _PAGE_DIRTY      |   |   | x | x | x | `pXX_dirty()`                    |
+| _PAGE_PSE        |   |   | x | x |   | `pXX_huge()` or `pXX_large()` \* |
+| _PAGE_GLOBAL     |   |   |   |   | x | `pte_global()`                   |
+| _PAGE_SPECIAL    |   |   |   |   | x | `pte_special()`                  |
+| _PAGE_UFFD_WP    |   |   |   | x | x | `pXX_uffd_wp()`                  |
+| _PAGE_SOFT_DIRTY |   |   | x | x | x | `pXX_soft_dirty()`               |
+| _PAGE_DEVMAP     |   |   | x | x | x | `pXX_devmap()`                   |
+| _PAGE_PKEY_BIT0  |   |   |   |   |   | N/A                              |
+| _PAGE_PKEY_BIT1  |   |   |   |   |   | N/A                              |
+| _PAGE_PKEY_BIT2  |   |   |   |   |   | N/A                              |
+| _PAGE_PKEY_BIT3  |   |   |   |   |   | N/A                              |
+| _PAGE_NX         |   |   |   |   | x | `pte_exec()`                     |
 
 \* Note that [pud_huge][19] and [pmd_huge][20] are declared in
 `arch/x86/mm/hugetlbpage.h` and implemented in `hugetlbpage.c` and have
@@ -213,10 +213,10 @@ Typically these flags can be set via `pXX_mkYYY()` e.g. `pte_mkyoung()`.
 
 There are also a few other predicates that don't rely on specific flags:
 
-| G | 4 | U | M | T | Function |
-|---|---|---|---|---|----------|
-| x | x | x | x | x | `pXX_none()` - Determines if entry is empty |
-| x | x | x | x | x | `pXX_bad()` - Determines if the entry is corrupted |
+| G | 4 | U | M | T | Function                                              |
+|---|---|---|---|---|-------------------------------------------------------|
+| x | x | x | x | x | `pXX_none()` - Determines if entry is empty           |
+| x | x | x | x | x | `pXX_bad()` - Determines if the entry is corrupted    |
 |   | x | x | x | x | `pXX_pgprot()` - Returns flags cast to [pgprot_t][21] |
 
 ## Available address space

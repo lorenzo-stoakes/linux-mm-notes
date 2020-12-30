@@ -320,10 +320,10 @@ of all pages managed by zones higher than the zone we're reserving pages for:
 
 | Alloc at / Could alloc at | ZONE_DMA | ZONE_DMA32 | ZONE_NORMAL | ZONE_MOVABLE |
 |---------------------------|----------|------------|-------------|--------------|
-| ZONE_DMA | . | 1/256 | 1/256 | 1/256 |
-| ZONE_DMA32 | . | . | 1/128 | 1/128 |
-| ZONE_NORMAL | . | . | . | 1/32 |
-| ZONE_MOVABLE | . | . | . | . |
+| ZONE_DMA                  | .        | 1/256      | 1/256       | 1/256        |
+| ZONE_DMA32                | .        | .          | 1/128       | 1/128        |
+| ZONE_NORMAL               | .        | .          | .           | 1/32         |
+| ZONE_MOVABLE              | .        | .          | .           | .            |
 
 The zones listed on the left are those that the allocation is occurring in, the
 zones listed at the top are the maximum zone that an allocation is permitted to
@@ -374,30 +374,30 @@ In order to see how these protection values have derived from the ratios
 specified in the tunable, let's work out how to sum the managed pages _above_
 each zone:
 
-| Alloc at / Could alloc at | ZONE_DMA | ZONE_DMA32 | ZONE_NORMAL | ZONE_MOVABLE |
-|---------------------------|----------|------------|-------------|--------------|
-| ZONE_DMA | . | DMA32 | DMA32 + NORMAL | DMA32 + NORMAL + MOVABLE |
-| ZONE_DMA32 | . | . | NORMAL | NORMAL + MOVABLE |
-| ZONE_NORMAL | . | . | . | MOVABLE |
-| ZONE_MOVABLE | . | . | . | . |
+| Alloc at / Could alloc at | ZONE_DMA | ZONE_DMA32 | ZONE_NORMAL    | ZONE_MOVABLE             |
+|---------------------------|----------|------------|----------------|--------------------------|
+| ZONE_DMA                  | .        | DMA32      | DMA32 + NORMAL | DMA32 + NORMAL + MOVABLE |
+| ZONE_DMA32                | .        | .          | NORMAL         | NORMAL + MOVABLE         |
+| ZONE_NORMAL               | .        | .          | .              | MOVABLE                  |
+| ZONE_MOVABLE              | .        | .          | .              | .                        |
 
 Taking the actual page counts:
 
 | Alloc at / Could alloc at | ZONE_DMA | ZONE_DMA32 | ZONE_NORMAL | ZONE_MOVABLE |
 |---------------------------|----------|------------|-------------|--------------|
-| ZONE_DMA | . | 765,917 | 2,601,949 | 7,701,612 |
-| ZONE_DMA32 | . | . | 1,836,032 | 6,935,695 |
-| ZONE_NORMAL | . | . | . | 5,099,663 |
-| ZONE_MOVABLE | . | . | . | . |
+| ZONE_DMA                  | .        | 765,917    | 2,601,949   | 7,701,612    |
+| ZONE_DMA32                | .        | .          | 1,836,032   | 6,935,695    |
+| ZONE_NORMAL               | .        | .          | .           | 5,099,663    |
+| ZONE_MOVABLE              | .        | .          | .           | .            |
 
 And finally multiplying by the ratios from the first table:
 
 | Alloc at / Could alloc at | ZONE_DMA | ZONE_DMA32 | ZONE_NORMAL | ZONE_MOVABLE |
 |---------------------------|----------|------------|-------------|--------------|
-| ZONE_DMA | . | 2,991 | 10,163 | 30,084 |
-| ZONE_DMA32 | . | . | 14,344 | 54,185 |
-| ZONE_NORMAL | . | . | . | 159,364 |
-| ZONE_MOVABLE | . | . | . | . |
+| ZONE_DMA                  | .        | 2,991      | 10,163      | 30,084       |
+| ZONE_DMA32                | .        | .          | 14,344      | 54,185       |
+| ZONE_NORMAL               | .        | .          | .           | 159,364      |
+| ZONE_MOVABLE              | .        | .          | .           | .            |
 
 Which matches the values reported by `/proc/zoneinfo`.
 
