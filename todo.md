@@ -91,6 +91,14 @@ void free_compound_page(struct page *page)
 
 * `struct page -> _mapcount`?
 
+* `fpi_flags`, gfp flags.
+
+* free lists
+
+* per-cpu pages
+
+* pageblocks
+
 ## virt_layout
 
 ```
