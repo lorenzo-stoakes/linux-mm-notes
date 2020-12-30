@@ -29,6 +29,8 @@
 
 * sparse mem sections.
 
+* file-backed memory.
+
 ### Questions
 
 * Initial mapping of physical mapping, vmem, etc.?
@@ -59,6 +61,35 @@ preallocate_vmalloc_pages()
   migrate types available at each order level.
 
 * `ioremap()` :)
+
+* compound pages:
+
+```c
+/*
+ * Higher-order pages are called "compound pages".  They are structured thusly:
+ *
+ * The first PAGE_SIZE page is called the "head page" and have PG_head set.
+ *
+ * The remaining PAGE_SIZE pages are called "tail pages". PageTail() is encoded
+ * in bit 0 of page->compound_head. The rest of bits is pointer to head page.
+ *
+ * The first tail page's ->compound_dtor holds the offset in array of compound
+ * page destructors. See compound_page_dtors.
+ *
+ * The first tail page's ->compound_order holds the order of allocation.
+ * This usage means that zero-order pages may not be compound.
+ */
+
+void free_compound_page(struct page *page)
+{
+    mem_cgroup_uncharge(page);
+    __free_pages_ok(page, compound_order(page), FPI_NONE);
+}
+```
+
+* hugetlbfs vs. transparent huge pages.
+
+* `struct page -> _mapcount`?
 
 ## virt_layout
 
