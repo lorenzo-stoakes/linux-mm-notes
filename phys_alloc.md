@@ -991,6 +991,27 @@ Node 0, zone    DMA32            2          483            0            0       
 Node 0, zone   Normal          226        31816          198            0            0
 ```
 
+#### Initialisation
+
+The migrate types are initialised through [memmap_init_zone()][memmap_init_zone]
+which calls [set_pageblock_migratetype()][set_pageblock_migratetype] for each
+pageblock-aligned page and defaulted to `MIGRATE_MOVABLE`.
+
+The callstack for this is:
+
+```
+setup_arch()
+x86_init.paging.pagetable_init()
+paging_init()
+zone_sizes_init()
+free_area_init()
+free_area_init_node()
+free_area_init_core()
+memmap_init()
+memmap_init_zone()
+set_pageblock_migratetype()
+```
+
 ## Buddy allocator
 
 Linux uses a [buddy allocator][buddy] to allocate physical memory. This is a
@@ -1193,3 +1214,4 @@ function performing page allocation.
 [get_pageblock_migratetype]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L93
 [set_pageblock_migratetype]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/page_alloc.c#L549
 [set_pfnblock_flags_mask]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/page_alloc.c#L519
+[memmap_init_zone]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/page_alloc.c#L6120
