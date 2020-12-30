@@ -595,9 +595,9 @@ __init_single_page()
 ### Accessing struct pages
 
 Once the pages have been setup they can be accessed via
-[pfn_to_page()][pfn_to_page] (the inverse via [page_to_pfn()][page_to_pfn])
-which both invoke the memory model-specific [__pfn_to_page()][__pfn_to_page] and
-[__page_to_pfn()][__page_to_pfn]:
+[pfn_to_page()][pfn_to_page] (and PFNs for a page obtained from
+[page_to_pfn()][page_to_pfn]) which both invoke the memory model-specific
+[__pfn_to_page()][__pfn_to_page] and [__page_to_pfn()][__page_to_pfn]:
 
 ```c
 /* memmap is virtually contiguous.  */
