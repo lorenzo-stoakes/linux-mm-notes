@@ -97,8 +97,6 @@ void free_compound_page(struct page *page)
 
 * per-cpu pages
 
-* pageblocks
-
 ## virt_layout
 
 ```
