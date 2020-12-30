@@ -995,10 +995,10 @@ Node 0, zone   Normal          226        31816          198            0       
 
 Linux uses a [buddy allocator][buddy] to allocate physical memory. This is a
 simple yet effective algorithm which allocates memory in `2^order` contiguous
-page blocks.
+page allocations.
 
 Physical contiguity is important as device drivers often require a contiguous
-block of physical memory and so the kernel needs to have the ability to
+allocation of physical memory and so the kernel needs to have the ability to
 efficiently mete these out.
 
 Each allocation aside from the top one ([MAX_ORDER][MAX_ORDER], typically 11 =
@@ -1034,7 +1034,7 @@ __find_buddy_pfn(unsigned long page_pfn, unsigned int order)
 }
 ```
 
-The PFN of a higher order allocation is equal to the lowest page in the block,
+The PFN of a higher order allocation is equal to the lowest page in the allocation,
 so we can determine buddies by simply flipping the `order`th bit of the PFN. The
 PFN of a page of a certain order will be aligned to `2^order` as each higher
 order level comprises all the pages below it.
@@ -1054,7 +1054,7 @@ Visually:
 ```
 
 Here each `|` represents the PFN of the first page of each orders' allocation
-(this is how allocation blocks are referenced).
+(this is how allocations are referenced).
 
 And highlighting buddies:
 
@@ -1075,19 +1075,20 @@ Here each adjacent `]` and `}` represent the start PFN of buddies. For example,
 order 3 buddies exist at (0, 8), (16, 24), etc.
 
 When pages are freed in the buddy allocator the buddy is checked and, if free,
-the two are coalesced into a block at the order level above. The process is
+the two are coalesced at the order level above. The process is
 repeated until a buddy is found not to be free. This way memory of each order is
-efficiently refilled as blocks are freed.
+efficiently refilled as memory is freed.
 
 When pages are allocated the free list at the requested order level is checked -
-if a free block can be found then that is returned otherwise the order levels
-above are checked until an available block is located. This block is then split
-until a block of the order required is obtained and this is returned.
+if a free chunk of memory at the right order can be found then that is returned
+otherwise the order levels above are checked until an available chunk is
+located. This is then split until memory of the order required is obtained and
+this is returned.
 
-As a consequence of this at least 1 additional block is left at each level above
+As a consequence of this at least 1 additional chunk is left at each level above
 the allocation meaning that future allocations can be performed more
-efficiently. It also ensures that block sizes are divided according to need (and
-coalesced again as soon as blocks at any given order are no longer required).
+efficiently. It also ensures that memory is divided according to need (and
+coalesced again as soon as memory at any given order is no longer required).
 
 ### Allocator initialisation
 
@@ -1111,10 +1112,14 @@ free_one_page()
 __free_one_page()
 ```
 
-This ultimately results in the core buddy allocator block free function
+This ultimately results in the core buddy allocator free function
 [__free_one_page()][__free_one_page] being invoked. This is somewhat poorly
-named as it accepts an order parameter and thus frees allocated blocks of pages
-at the specified order:
+named as it accepts an order parameter and thus frees pages at the specified
+order (there seems generally to be some confusing use of page as in a page of
+memory or `struct page` vs. a series of physically contiguous pages at a
+specified order).
+
+Looking at the function signature:
 
 ```c
 static inline void __free_one_page(struct page *page,
@@ -1122,6 +1127,8 @@ static inline void __free_one_page(struct page *page,
         struct zone *zone, unsigned int order,
         int migratetype, fpi_t fpi_flags)
 ```
+
+TBD
 
 ### Page allocation
 
