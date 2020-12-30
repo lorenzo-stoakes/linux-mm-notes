@@ -559,7 +559,19 @@ x86_init.paging.pagetable_init() -> paging_init()`) which in turn invokes
 [memblock][memblock] memory via [sparse_buffer_init()][sparse_buffer_init] and
 populates each section via
 [__populate_section_memmap()][__populate_section_memmap] and
-[vmemmap_populate()][vmemmap_populate] which does the heavy lifting.
+[vmemmap_populate()][vmemmap_populate] which does the heavy lifting via the
+following call stack:
+
+```
+setup_arch()
+x86_init.paging.pagetable_init()
+paging_init()
+sparse_init()
+sparse_init_nid()
+  sparse_buffer_init()
+  __populate_section_memmap()
+    vmemmap_populate()
+```
 
 Note that the [struct page][page]s allocated here are uninitialised. The
 initialisation occurs elsewhere, also called from [paging_init()][paging_init]
