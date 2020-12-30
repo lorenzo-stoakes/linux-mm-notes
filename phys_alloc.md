@@ -683,43 +683,122 @@ up to use x86-64 config):
 
 ```c
 struct mem_section_usage {
-	DECLARE_BITMAP(subsection_map, SUBSECTIONS_PER_SECTION);
+    DECLARE_BITMAP(subsection_map, SUBSECTIONS_PER_SECTION);
 
-	/* See declaration of similar field in struct zone */
-	unsigned long pageblock_flags[0];
+    /* See declaration of similar field in struct zone */
+    unsigned long pageblock_flags[0];
 };
 ```
 
-This puts `pageblock_flags[]` at the end of the `mem_section_usage` structure
-whose size is determined by [mem_section_usage_size()][mem_section_usage_size]:
+#### Page blocks
+
+A page block is the smallest number of pages for which a migrate type can be
+applied. For a standard x86-64 configuration `pageblock_order` is equal to the
+difference between `PMD_SHIFT` and `PAGE_SHIFT` i.e. 9, and `pageblock_nr_pages`
+is equal to `2 ^ pageblock_order` i.e. __512 pages per page block__.
+
+Page block flags are stored in `pageblock_flags[]` 'usemap' at the end of the
+`mem_section_usage` structure whose size is determined by
+[mem_section_usage_size()][mem_section_usage_size]:
 
 ```c
 size_t mem_section_usage_size(void)
 {
-	return sizeof(struct mem_section_usage) + usemap_size();
+    return sizeof(struct mem_section_usage) + usemap_size();
 }
 
 ...
 
 static unsigned long usemap_size(void)
 {
-	return BITS_TO_LONGS(SECTION_BLOCKFLAGS_BITS) * sizeof(unsigned long);
+    return BITS_TO_LONGS(SECTION_BLOCKFLAGS_BITS) * sizeof(unsigned long);
 }
 
 ...
 
 #define SECTION_BLOCKFLAGS_BITS \
-	((1UL << (PFN_SECTION_SHIFT - pageblock_order)) * NR_PAGEBLOCK_BITS)
+    ((1UL << (PFN_SECTION_SHIFT - pageblock_order)) * NR_PAGEBLOCK_BITS)
 ```
 
-For a standard x86-64 configuration `pageblock_order` is equal to the difference
-between `PMD_SHIFT` and `PAGE_SHIFT` i.e. 9, `PFN_SECTION_SHIFT` is equal to the
-difference between `SECTION_SIZE_BITS` (27) and `PAGE_SHIFT` (12)
-i.e. 15. `NR_PAGEBLOCK_BITS` is equal to 4 so we are left with ((1 << (15 -
-9)) * 4) = 64 * 4 = 256, resulting in 4 * 8 = 32 bytes `usemap_size()`.
+The actual values comprise a bitmap with entries for each page block and [enum
+pageblock_bits][pageblock_bits] bit, of which there are `NR_PAGEBLOCK_BITS`
+i.e. 4.
 
-This places `PAGES_PER_SECTION = 2 ^ PFN_SECTION_SHIFT = 2^15` = 32,768 pages in
-each section (128 MiB at a time).
+Here `PFN_SECTION_SHIFT` is equal to the difference between `SECTION_SIZE_BITS`
+(27) and `PAGE_SHIFT` (12) i.e. 15. `NR_PAGEBLOCK_BITS` is equal to 4 so we are
+left with ((1 << (15 - 9)) * 4) = 64 * 4 = 256, resulting in 4 * 8 = 32 bytes
+`usemap_size()`.
+
+Page blocks are accessed via
+[__get_pfnblock_flags_mask()][__get_pfnblock_flags_mask]:
+
+```c
+static __always_inline
+unsigned long __get_pfnblock_flags_mask(struct page *page,
+					unsigned long pfn,
+					unsigned long mask)
+{
+	unsigned long *bitmap;
+	unsigned long bitidx, word_bitidx;
+	unsigned long word;
+
+	bitmap = get_pageblock_bitmap(page, pfn);
+	bitidx = pfn_to_bitidx(page, pfn);
+	word_bitidx = bitidx / BITS_PER_LONG;
+	bitidx &= (BITS_PER_LONG-1);
+
+	word = bitmap[word_bitidx];
+	return (word >> bitidx) & mask;
+}
+```
+
+The [get_pageblock_bitmap()][get_pageblock_bitmap] function simply invokes
+[section_to_usemap()][section_to_usemap] which retrieves the usemap part of
+[struct mem_section_usage][mem_section_usage]:
+
+```c
+/* Return a pointer to the bitmap storing bits affecting a block of pages */
+static inline unsigned long *get_pageblock_bitmap(struct page *page,
+							unsigned long pfn)
+{
+#ifdef CONFIG_SPARSEMEM
+	return section_to_usemap(__pfn_to_section(pfn));
+#eles
+	return page_zone(page)->pageblock_flags;
+#endif /* CONFIG_SPARSEMEM */
+}
+
+static inline unsigned long *section_to_usemap(struct mem_section *ms)
+{
+	return ms->usage->pageblock_flags;
+}
+```
+
+This provides the bitmap for the whole section. The
+[pfn_to_bitidx()][pfn_to_bitidx] function translates from the PFN to the bit
+index we need to examine in the bitmap. Pared down to show only the sparse
+memory model code:
+
+```c
+static inline int pfn_to_bitidx(struct page *page, unsigned long pfn)
+{
+	pfn &= (PAGES_PER_SECTION-1);
+	return (pfn >> pageblock_order) * NR_PAGEBLOCK_BITS;
+}
+```
+
+Since section size (32,768 pages) and page block size (512 pages) are aligned
+(64 page blocks per section) we need only mask off the lower bits of the PFN to
+find the correct offset into the section. Then, by shifting right by
+`pageblock_order` the value is divided by 512 giving us the index of the correct
+page block. Finally we multiply by `NR_PAGEBLOCK_BITS` (4) to get the correct
+offset of the LSB of the 4 bit range we need to read from the usemap.
+
+The rest of the function pulls out the flags from the bitmap and masks it off
+correctly.
+
+In order to set pageblock flags the
+[set_pfnblock_flags_mask()][set_pfnblock_flags_mask] function can be used.
 
 #### Accessing memory sections
 
@@ -733,22 +812,22 @@ converted to the [struct mem_section][mem_section] via
 ```c
 static inline unsigned long pfn_to_section_nr(unsigned long pfn)
 {
-	return pfn >> PFN_SECTION_SHIFT;
+    return pfn >> PFN_SECTION_SHIFT;
 }
 static inline unsigned long section_nr_to_pfn(unsigned long sec)
 {
-	return sec << PFN_SECTION_SHIFT;
+    return sec << PFN_SECTION_SHIFT;
 }
 
 static inline struct mem_section *__nr_to_section(unsigned long nr)
 {
 #ifdef CONFIG_SPARSEMEM_EXTREME
-	if (!mem_section)
-		return NULL;
+    if (!mem_section)
+        return NULL;
 #endif
-	if (!mem_section[SECTION_NR_TO_ROOT(nr)])
-		return NULL;
-	return &mem_section[SECTION_NR_TO_ROOT(nr)][nr & SECTION_ROOT_MASK];
+    if (!mem_section[SECTION_NR_TO_ROOT(nr)])
+        return NULL;
+    return &mem_section[SECTION_NR_TO_ROOT(nr)][nr & SECTION_ROOT_MASK];
 }
 ```
 
@@ -789,6 +868,9 @@ memory as provided by [memblock][memblock].
 `mem_section_usage` is allocated by
 [sparse_early_usemaps_alloc_pgdat_section()][sparse_early_usemaps_alloc_pgdat_section]
 and assigned in [sparse_init_one_section()][sparse_init_one_section].
+
+This places `PAGES_PER_SECTION = 2 ^ PFN_SECTION_SHIFT = 2^15` = 32,768 pages in
+each section (128 MiB at a time).
 
 ### Initial struct page allocation
 
@@ -849,8 +931,9 @@ contiguous `struct page`s this is a simple offset.
 
 ### Migrate types
 
-Allocations are assigned a 'migrate type' which determines how pages might be
-moved around. The possible values (defined in [enum migratetype][migratetype] are:
+Each page block (of 512 pages) is assigned a 'migrate type' which determines how
+pages might be moved around. The possible values (defined in [enum
+migratetype][migratetype] are:
 
 * `MIGRATE_UNMOVABLE`
 * `MIGRATE_MOVABLE`
@@ -863,6 +946,50 @@ moved around. The possible values (defined in [enum migratetype][migratetype] ar
 * `MIGRATE_CMA` - Special migration type analogous to `ZONE_MOVABLE` which keeps
   pages in a state appropriate for CMA usage.
 * `MIGRATE_ISOLATE` - Prevents pages from being migrated elsewhere.
+
+The migrate type of a pageblock is stored via its [struct
+mem_section][mem_section] in the `mem_section_usage` structure as part of the
+usemap i.e. `pageblock_flags` bitmap.
+
+A page block's `migratetype` typically uses
+[get_pfnblock_migratetype()][get_pfnblock_migratetype] or
+[get_pageblock_migratetype()][get_pageblock_migratetype] both of which, in turn,
+invoke [__get_pfnblock_flags_mask()][__get_pfnblock_flags_mask] as described in
+the page block section above.
+
+To set the migratetype for a pageblock
+[set_pageblock_migratetype()][set_pageblock_migratetype] can be used.
+
+In order to see current pageblock statistics, you can read from
+`/proc/pagetypeinfo`, e.g. on my system this outputs:
+
+```
+$ sudo cat /proc/pagetypeinfo
+Page block order: 9
+Pages per block:  512
+
+Free pages count per migrate type at order       0      1      2      3      4      5      6      7      8      9     10
+Node    0, zone      DMA, type    Unmovable      1      1      1      2      3      2      0      0      1      0      0
+Node    0, zone      DMA, type      Movable      0      0      0      0      0      0      0      0      0      1      2
+Node    0, zone      DMA, type  Reclaimable      0      0      0      0      0      0      0      0      0      0      0
+Node    0, zone      DMA, type   HighAtomic      0      0      0      0      0      0      0      0      0      0      0
+Node    0, zone      DMA, type      Isolate      0      0      0      0      0      0      0      0      0      0      0
+Node    0, zone    DMA32, type    Unmovable      1      0      0      0      0      0      1      2      0      0      0
+Node    0, zone    DMA32, type      Movable      7      9      9     10      8      7      5      6      7      7    218
+Node    0, zone    DMA32, type  Reclaimable      0      0      0      0      0      0      0      0      0      0      0
+Node    0, zone    DMA32, type   HighAtomic      0      0      0      0      0      0      0      0      0      0      0
+Node    0, zone    DMA32, type      Isolate      0      0      0      0      0      0      0      0      0      0      0
+Node    0, zone   Normal, type    Unmovable      1      1      9     31     43     74     44     12      3      1      0
+Node    0, zone   Normal, type      Movable   3664   5234   1967   2123   1491   1554   1414   3033   1772   1282  11541
+Node    0, zone   Normal, type  Reclaimable      0      0      1      0      4      1      0      1      0      0      0
+Node    0, zone   Normal, type   HighAtomic      0      0      0      0      0      0      0      0      0      0      0
+Node    0, zone   Normal, type      Isolate      0      0      0      0      0      0      0      0      0      0      0
+
+Number of blocks type     Unmovable      Movable  Reclaimable   HighAtomic      Isolate
+Node 0, zone      DMA            3            5            0            0            0
+Node 0, zone    DMA32            2          483            0            0            0
+Node 0, zone   Normal          226        31816          198            0            0
+```
 
 ## Buddy allocator
 
@@ -1052,3 +1179,10 @@ function performing page allocation.
 [__pfn_to_section]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L1333
 [__section_nr]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/sparse.c#L112
 [section_to_usemap]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L1245
+[get_pfnblock_migratetype]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/page_alloc.c#L507
+[__get_pfnblock_flags_mask]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/page_alloc.c#L476
+[get_pageblock_bitmap]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/page_alloc.c#L455
+[pfn_to_bitidx]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/page_alloc.c#Lv
+[get_pageblock_migratetype]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L93
+[set_pageblock_migratetype]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/page_alloc.c#L549
+[set_pfnblock_flags_mask]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/page_alloc.c#L519
