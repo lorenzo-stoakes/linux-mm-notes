@@ -546,6 +546,106 @@ struct page {
 } _struct_page_alignment;
 ```
 
+### Page flags
+
+Pages are flagged by both the `flags` and `page_type` fields, neither of which
+should be accessed directly but rather via `PageXXX()` macros. All of the flags
+and macro mechanisms are defined in [include/linux/page-flags.h][page-flags].
+
+The available macros are `PageXXX()` which tests if the flag is set,
+`SetPageXXX()` which sets the flag, `ClearPageXXX()` which clears it, and for
+some flags `TestSetPageXXX()` which sets the flag returning its original value,
+`TestClearPageXXX()` which clears the flag returning its original value.
+
+Page type flags can only be used if the page is neither `PageSlab` nor mappable
+to userspace.
+
+Each page flag that references the `flags` field must apply a policy. As described
+in `page-flags.h`:
+
+```c
+/*
+ * Page flags policies wrt compound pages
+ *
+ * PF_POISONED_CHECK
+ *     check if this struct page poisoned/uninitialized
+ *
+ * PF_ANY:
+ *     the page flag is relevant for small, head and tail pages.
+ *
+ * PF_HEAD:
+ *     for compound page all operations related to the page flag applied to
+ *     head page.
+ *
+ * PF_ONLY_HEAD:
+ *     for compound page, callers only ever operate on the head page.
+ *
+ * PF_NO_TAIL:
+ *     modifications of the page flag must be done on small or head pages,
+ *     checks can be done on tail pages too.
+ *
+ * PF_NO_COMPOUND:
+ *     the page flag is not relevant for compound pages.
+ *
+ * PF_SECOND:
+ *     the page flag is stored in the first tail page.
+ */
+```
+
+| Flag             | field                        | Policy      | Notes                                               |
+|------------------|------------------------------|-------------|-----------------------------------------------------|
+| Head             | flags                        | any         |                                                     |
+| Tail             | compound_head                | -           | Own function                                        |
+| Compound         | flags, compound_head         | -           | Own function                                        |
+| Poisoned         | flags                        | -           | Own function                                        |
+| Locked           | flags                        | No tail     |                                                     |
+| Waiters          | flags                        | Only head   |                                                     |
+| Error            | flags                        | No tail     |                                                     |
+| Referenced       | flags                        | head        |                                                     |
+| Dirty            | flags                        | head        |                                                     |
+| LRU              | flags                        | head        |                                                     |
+| Active           | flags                        | head        |                                                     |
+| Workingset       | flags                        | head        |                                                     |
+| Slab             | flags                        | no tail     |                                                     |
+| SlobFree         | flags                        | no tail     |                                                     |
+| Checked          | flags                        | no compound |                                                     |
+| Pinned           | flags                        | no compound |                                                     |
+| SavePinned       | flags                        | no compound |                                                     |
+| Foreign          | flags                        | no compound |                                                     |
+| XenRemapped      | flags                        | no compound |                                                     |
+| Reserved         | flags                        | no compound |                                                     |
+| SwapBacked       | flags                        | no tail     |                                                     |
+| Private          | flags                        | any         |                                                     |
+| Private2         | flags                        | any         |                                                     |
+| OwnerPriv1       | flags                        | any         |                                                     |
+| Writeback        | flags                        | no tail     |                                                     |
+| MappedToDisk     | flags                        | no tail     |                                                     |
+| Reclaim          | flags                        | no tail     |                                                     |
+| Readahead        | flags                        | no compound |                                                     |
+| SwapCache        | flags                        | no tail     | Own function                                        |
+| Unevictable      | flags                        | head        |                                                     |
+| Mlocked          | flags                        | no tail     |                                                     |
+| Uncached         | flags                        | no compound |                                                     |
+| HWPoison         | flags                        | any         |                                                     |
+| Reported         | flags                        | no compound |                                                     |
+| MappingFlags     | mapping                      | -           | Own function                                        |
+| Anon             | mapping                      | -           | Own function                                        |
+| __Movable        | mapping                      | -           | Own function, __Page prefix                         |
+| Uptodate         | page                         | -           | Own function, memory barriers required, FS-specific |
+| Huge             | compound_head, compound_dtor | -           | Own function, only checks for hugetlbfs             |
+| HeadHuge         | flags, compound_dtor         | any         | Own function, only checks for hugetlbfs             |
+| TransHuge        | flags                        | any         | Own function, must know not hugetlbfs               |
+| TransCompound    | flags                        | any         | Own function, must know not hugetlbfs               |
+| TransCompoundMap | flag, _mapcount              | any         | Own function, must know not hugetlbfs               |
+| TransTail        | compound_head                | -           | Own function, must know not hugetlbfs               |
+| DoubleMap        | flags                        | second      |                                                     |
+| Buddy            | page_type                    | -           | Page is free and in the buddy system                |
+| Offline          | page_type                    | -           | Page offline though section online                  |
+| Table            | page_type                    | -           | Indicates used for a page table                     |
+| Guard            | page_type                    | -           | Indicates used with debug_pagealloc                 |
+| Isolated         | flags                        | any         |                                                     |
+| SlabPfmemalloc   | flags                        | head        | Own function, checks PageSlab()                     |
+
 ### Initial struct page allocation
 
 x86-64 uses the [sparse memory model][sparsemem] which divides contiguous sets
