@@ -785,8 +785,8 @@ memory as provided by [memblock][memblock].
     }
 ```
 
-`sparse_init()` invokes [sparse_init_nid()][sparse_init_nid] where the usage
-struct is allocated by
+`sparse_init()` invokes [sparse_init_nid()][sparse_init_nid] where
+`mem_section_usage` is allocated by
 [sparse_early_usemaps_alloc_pgdat_section()][sparse_early_usemaps_alloc_pgdat_section]
 and assigned in [sparse_init_one_section()][sparse_init_one_section].
 
@@ -847,7 +847,7 @@ Once the pages have been setup they can be accessed via
 Since x86-64 implements `CONFIG_SPARSEMEM_VMEMMAP` and thus provides virtually
 contiguous `struct page`s this is a simple offset.
 
-### migrate types
+### Migrate types
 
 Allocations are assigned a 'migrate type' which determines how pages might be
 moved around. The possible values (defined in [enum migratetype][migratetype] are:
