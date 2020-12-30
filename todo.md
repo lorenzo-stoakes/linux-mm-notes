@@ -139,6 +139,9 @@ e820!
 /proc/slabinfo
 /proc/iomem
 
+/proc/buddyinfo
+/proc/pagetypeinfo
+
 /proc/*/maps
 /proc/*/smaps
 /proc/*/status
