@@ -995,7 +995,19 @@ Node 0, zone   Normal          226        31816          198            0       
 
 The migrate types are initialised through [memmap_init_zone()][memmap_init_zone]
 which calls [set_pageblock_migratetype()][set_pageblock_migratetype] for each
-pageblock-aligned page and defaulted to `MIGRATE_MOVABLE`.
+pageblock-aligned page and defaulted to `MIGRATE_MOVABLE`:
+
+```c
+        /*
+         * Usually, we want to mark the pageblock MIGRATE_MOVABLE,
+         * such that unmovable allocations won't be scattered all
+         * over the place during system boot.
+         */
+        if (IS_ALIGNED(pfn, pageblock_nr_pages)) {
+            set_pageblock_migratetype(page, migratetype);
+            cond_resched();
+        }
+```
 
 The callstack for this is:
 
