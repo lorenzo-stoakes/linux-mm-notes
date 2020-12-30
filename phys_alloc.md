@@ -599,7 +599,12 @@ contiguous `struct page`s this is a simple offset.
 ## Buddy allocator
 
 Linux uses a [buddy allocator][buddy] to allocate physical memory. This is a
-simple yet effective algorithm which allocates memory in `2^order` page blocks.
+simple yet effective algorithm which allocates memory in `2^order` contiguous
+page blocks.
+
+Physical contiguity is important as device drivers often require a contiguous
+block of physical memory and so the kernel needs to have the ability to
+efficiently mete these out.
 
 Each allocation aside from the top one ([MAX_ORDER][MAX_ORDER], typically 11 =
 2,048 pages or 8 MiB) is paired with a 'buddy' and when it is freed, the two are
