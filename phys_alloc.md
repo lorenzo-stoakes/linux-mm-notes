@@ -646,23 +646,6 @@ in `page-flags.h`:
 | Isolated         | flags                        | any         |                                                     |
 | SlabPfmemalloc   | flags                        | head        | Own function, checks PageSlab()                     |
 
-### migrate types
-
-Allocations are assigned a 'migrate type' which determines how pages might be
-moved around. The possible values (defined in [enum migratetype][migratetype] are:
-
-* `MIGRATE_UNMOVABLE`
-* `MIGRATE_MOVABLE`
-* `MIGRATE_RECLAIMABLE`
-* `MIGRATE_PCPTYPES` - this indicates a count of the prior migrate types which
-  exist on per-CPU lists in [struct per_cpu_pages][per_cpu_pages]. The migrate
-  types below do not exist there:
-* `MIGRATE_HIGHATOMIC` - See the [lwn article on this][lwn-highatomic]. Intended
-  to retain some degree of higher order pages.
-* `MIGRATE_CMA` - Special migration type analogous to `ZONE_MOVABLE` which keeps
-  pages in a state appropriate for CMA usage.
-* `MIGRATE_ISOLATE` - Prevents pages from being migrated elsewhere.
-
 ### Sparse memory model and memory sections
 
 x86-64 uses the [sparse memory model][sparsemem] which divides contiguous sets
@@ -692,6 +675,8 @@ struct mem_section {
 	struct mem_section_usage *usage;
 };
 ```
+
+These are stored in the [mem_section][mem_section-variable] global variable.
 
 Each `mem_section` has a [struct mem_section_usage][mem_section_usage] (cleaned
 up to use x86-64 config):
@@ -735,6 +720,44 @@ i.e. 15. `NR_PAGEBLOCK_BITS` is equal to 4 so we are left with ((1 << (15 -
 
 This places `PAGES_PER_SECTION = 2 ^ PFN_SECTION_SHIFT = 2^15` = 32,768 pages in
 each section (128 MiB at a time).
+
+#### Accessing memory sections
+
+A PFN can be converted to a section number via
+[pfn_to_section_nr()][pfn_to_section_nr]
+([section_nr_to_pfn()][section_nr_to_pfn] in reverse), and a section number
+converted to the [struct mem_section][mem_section] via
+[__nr_to_section()][__nr_to_section]. There is also a convenience function
+[__pfn_to_section()][__pfn_to_section] to translate directly:
+
+```c
+static inline unsigned long pfn_to_section_nr(unsigned long pfn)
+{
+	return pfn >> PFN_SECTION_SHIFT;
+}
+static inline unsigned long section_nr_to_pfn(unsigned long sec)
+{
+	return sec << PFN_SECTION_SHIFT;
+}
+
+static inline struct mem_section *__nr_to_section(unsigned long nr)
+{
+#ifdef CONFIG_SPARSEMEM_EXTREME
+	if (!mem_section)
+		return NULL;
+#endif
+	if (!mem_section[SECTION_NR_TO_ROOT(nr)])
+		return NULL;
+	return &mem_section[SECTION_NR_TO_ROOT(nr)][nr & SECTION_ROOT_MASK];
+}
+```
+
+The standard x86-64 configuration enables `CONFIG_SPARSEMEM_EXTREME` which
+allows for dynamic sparsemem allocations and renders the
+[mem_section][mem_section-variable] variable a 2-dimension array.
+
+There is also a [__section_nr()][__section_nr] function that performs the
+reverse lookup via a linear search.
 
 #### Initialisation
 
@@ -823,6 +846,23 @@ Once the pages have been setup they can be accessed via
 
 Since x86-64 implements `CONFIG_SPARSEMEM_VMEMMAP` and thus provides virtually
 contiguous `struct page`s this is a simple offset.
+
+### migrate types
+
+Allocations are assigned a 'migrate type' which determines how pages might be
+moved around. The possible values (defined in [enum migratetype][migratetype] are:
+
+* `MIGRATE_UNMOVABLE`
+* `MIGRATE_MOVABLE`
+* `MIGRATE_RECLAIMABLE`
+* `MIGRATE_PCPTYPES` - this indicates a count of the prior migrate types which
+  exist on per-CPU lists in [struct per_cpu_pages][per_cpu_pages]. The migrate
+  types below do not exist there:
+* `MIGRATE_HIGHATOMIC` - See the [lwn article on this][lwn-highatomic]. Intended
+  to retain some degree of higher order pages.
+* `MIGRATE_CMA` - Special migration type analogous to `ZONE_MOVABLE` which keeps
+  pages in a state appropriate for CMA usage.
+* `MIGRATE_ISOLATE` - Prevents pages from being migrated elsewhere.
 
 ## Buddy allocator
 
@@ -1005,3 +1045,10 @@ function performing page allocation.
 [memblocks_present]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/sparse.c#L292
 [memory_present]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/sparse.c#L252
 [PAGES_PER_SECTION]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L1149
+[mem_section-variable]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L1240
+[pfn_to_section_nr]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L1159
+[section_nr_to_pfn]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L1163
+[__nr_to_section]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L1250
+[__pfn_to_section]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L1333
+[__section_nr]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/sparse.c#L112
+[section_to_usemap]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L1245
