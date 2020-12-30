@@ -658,21 +658,21 @@ mem_section][mem_section] (pared down for clarity):
 
 ```c
 struct mem_section {
-	/*
-	 * This is, logically, a pointer to an array of struct
-	 * pages.  However, it is stored with some other magic.
-	 * (see sparse.c::sparse_init_one_section())
-	 *
-	 * Additionally during early boot we encode node id of
-	 * the location of the section here to guide allocation.
-	 * (see sparse.c::memory_present())
-	 *
-	 * Making it a UL at least makes someone do a cast
-	 * before using it wrong.
-	 */
-	unsigned long section_mem_map;
+    /*
+     * This is, logically, a pointer to an array of struct
+     * pages.  However, it is stored with some other magic.
+     * (see sparse.c::sparse_init_one_section())
+     *
+     * Additionally during early boot we encode node id of
+     * the location of the section here to guide allocation.
+     * (see sparse.c::memory_present())
+     *
+     * Making it a UL at least makes someone do a cast
+     * before using it wrong.
+     */
+    unsigned long section_mem_map;
 
-	struct mem_section_usage *usage;
+    struct mem_section_usage *usage;
 };
 ```
 
