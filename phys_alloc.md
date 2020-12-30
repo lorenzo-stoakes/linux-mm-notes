@@ -828,6 +828,18 @@ free_one_page()
 __free_one_page()
 ```
 
+This ultimately results in the core buddy allocator block free function
+[__free_one_page()][__free_one_page] being invoked. This is somewhat poorly
+named as it accepts an order parameter and thus frees allocated blocks of pages
+at the specified order:
+
+```c
+static inline void __free_one_page(struct page *page,
+        unsigned long pfn,
+        struct zone *zone, unsigned int order,
+        int migratetype, fpi_t fpi_flags)
+```
+
 ### Page allocation
 
 The [__alloc_pages_nodemask()][__alloc_pages_nodemask] function is the core
@@ -864,3 +876,5 @@ function performing page allocation.
 [__pfn_to_page]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/include/asm-generic/memory_model.h#L54
 [__page_to_pfn]:https://github.com/torvalds/linux/blob/dea8dcf2a9fa8cc540136a6cd885c3beece16ec3/include/asm-generic/memory_model.h#L55
 [direct-phys-mapping]:/virt_layout.md#direct-physical-memory-mapping
+[__free_one_page]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/page_alloc.c#L996
+[page-flags]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/page-flags.h
