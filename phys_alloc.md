@@ -646,6 +646,23 @@ in `page-flags.h`:
 | Isolated         | flags                        | any         |                                                     |
 | SlabPfmemalloc   | flags                        | head        | Own function, checks PageSlab()                     |
 
+### migrate types
+
+Allocations are assigned a 'migrate type' which determines how pages might be
+moved around. The possible values (defined in [enum migratetype][migratetype] are:
+
+* `MIGRATE_UNMOVABLE`
+* `MIGRATE_MOVABLE`
+* `MIGRATE_RECLAIMABLE`
+* `MIGRATE_PCPTYPES` - this indicates a count of the prior migrate types which
+  exist on per-CPU lists in [struct per_cpu_pages][per_cpu_pages]. The migrate
+  types below do not exist there:
+* `MIGRATE_HIGHATOMIC` - See the [lwn article on this][lwn-highatomic]. Intended
+  to retain some degree of higher order pages.
+* `MIGRATE_CMA` - Special migration type analogous to `ZONE_MOVABLE` which keeps
+  pages in a state appropriate for CMA usage.
+* `MIGRATE_ISOLATE` - Prevents pages from being migrated elsewhere.
+
 ### Initial struct page allocation
 
 x86-64 uses the [sparse memory model][sparsemem] which divides contiguous sets
@@ -878,3 +895,6 @@ function performing page allocation.
 [direct-phys-mapping]:/virt_layout.md#direct-physical-memory-mapping
 [__free_one_page]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/page_alloc.c#L996
 [page-flags]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/page-flags.h
+[migratetype]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L41
+[per_cpu_pages]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/linux/mmzone.h#L320
+[lwn-highatomic]:https://lwn.net/Articles/658081/
