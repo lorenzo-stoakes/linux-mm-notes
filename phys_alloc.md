@@ -1069,6 +1069,10 @@ void prep_compound_page(struct page *page, unsigned int order)
 }
 ```
 
+This is invoked by [prep_new_page()][prep_new_page] which is called from either
+[get_page_from_freelist()][get_page_from_freelist] or
+[__alloc_pages_direct_compact()][__alloc_pages_direct_compact].
+
 ## Buddy allocator
 
 Linux uses a [buddy allocator][buddy] to allocate physical memory. This is a
@@ -1280,3 +1284,6 @@ function performing page allocation.
 [prep_compound_page]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L671
 [set_compound_head]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/page-flags.h#L572
 [set_compound_order]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/mm.h#L949
+[prep_new_page]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L2301
+[__alloc_pages_direct_compact]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L4132
+[get_page_from_freelist]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L3826
