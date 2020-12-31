@@ -735,20 +735,20 @@ Page blocks are accessed via
 ```c
 static __always_inline
 unsigned long __get_pfnblock_flags_mask(struct page *page,
-					unsigned long pfn,
-					unsigned long mask)
+                    unsigned long pfn,
+                    unsigned long mask)
 {
-	unsigned long *bitmap;
-	unsigned long bitidx, word_bitidx;
-	unsigned long word;
+    unsigned long *bitmap;
+    unsigned long bitidx, word_bitidx;
+    unsigned long word;
 
-	bitmap = get_pageblock_bitmap(page, pfn);
-	bitidx = pfn_to_bitidx(page, pfn);
-	word_bitidx = bitidx / BITS_PER_LONG;
-	bitidx &= (BITS_PER_LONG-1);
+    bitmap = get_pageblock_bitmap(page, pfn);
+    bitidx = pfn_to_bitidx(page, pfn);
+    word_bitidx = bitidx / BITS_PER_LONG;
+    bitidx &= (BITS_PER_LONG-1);
 
-	word = bitmap[word_bitidx];
-	return (word >> bitidx) & mask;
+    word = bitmap[word_bitidx];
+    return (word >> bitidx) & mask;
 }
 ```
 
@@ -759,18 +759,18 @@ The [get_pageblock_bitmap()][get_pageblock_bitmap] function simply invokes
 ```c
 /* Return a pointer to the bitmap storing bits affecting a block of pages */
 static inline unsigned long *get_pageblock_bitmap(struct page *page,
-							unsigned long pfn)
+                            unsigned long pfn)
 {
 #ifdef CONFIG_SPARSEMEM
-	return section_to_usemap(__pfn_to_section(pfn));
+    return section_to_usemap(__pfn_to_section(pfn));
 #eles
-	return page_zone(page)->pageblock_flags;
+    return page_zone(page)->pageblock_flags;
 #endif /* CONFIG_SPARSEMEM */
 }
 
 static inline unsigned long *section_to_usemap(struct mem_section *ms)
 {
-	return ms->usage->pageblock_flags;
+    return ms->usage->pageblock_flags;
 }
 ```
 
@@ -782,8 +782,8 @@ memory model code:
 ```c
 static inline int pfn_to_bitidx(struct page *page, unsigned long pfn)
 {
-	pfn &= (PAGES_PER_SECTION-1);
-	return (pfn >> pageblock_order) * NR_PAGEBLOCK_BITS;
+    pfn &= (PAGES_PER_SECTION-1);
+    return (pfn >> pageblock_order) * NR_PAGEBLOCK_BITS;
 }
 ```
 
