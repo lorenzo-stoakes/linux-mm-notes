@@ -97,6 +97,8 @@ void free_compound_page(struct page *page)
 
 * per-cpu pages
 
+* `head_compound_pincount()` etc.
+
 ## virt_layout
 
 ```
