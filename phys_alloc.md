@@ -1024,6 +1024,51 @@ memmap_init_zone()
 set_pageblock_migratetype()
 ```
 
+## Compound pages
+
+Higher-order pages are known as 'compound' pages. The first page is the head and
+has the `PageHead()` flag set, the rest are `PageTail()` (encoded as bit 0 of
+`page->compound_head`, the remaining bits point at the head page). Setting the
+`compound_head` field is done via [set_compound_head()][set_compound_head].
+
+The first tail page contains relevant fields:
+
+* `compound_dtor` - Offset into [compound_page_dtors][compound_page_dtors]
+  indicating which destructor to use (specific ones are required for
+  hugetlbfs/transparent page compound pages), but the default is
+  [free_compound_page()][free_compound_page]. The destructor is invoked via
+  [destroy_compound_page()][destroy_compound_page] and the destructor is set via
+  [set_compound_page_dtor()][set_compound_page_dtor].
+
+* `compound_order` - The order of the allocation, retrieve via
+  [compound_order()][compound_order] and set via
+  [set_compound_order()][set_compound_order].
+
+A compound page is set up initially via
+[prep_compound_page()][prep_compound_page]:
+
+```c
+void prep_compound_page(struct page *page, unsigned int order)
+{
+    int i;
+    int nr_pages = 1 << order;
+
+    __SetPageHead(page);
+    for (i = 1; i < nr_pages; i++) {
+        struct page *p = page + i;
+        set_page_count(p, 0);
+        p->mapping = TAIL_MAPPING;
+        set_compound_head(p, page);
+    }
+
+    set_compound_page_dtor(page, COMPOUND_PAGE_DTOR);
+    set_compound_order(page, order);
+    atomic_set(compound_mapcount_ptr(page), -1);
+    if (hpage_pincount_available(page))
+        atomic_set(compound_pincount_ptr(page), 0);
+}
+```
+
 ## Buddy allocator
 
 Linux uses a [buddy allocator][buddy] to allocate physical memory. This is a
@@ -1113,13 +1158,13 @@ repeated until a buddy is found not to be free. This way memory of each order is
 efficiently refilled as memory is freed.
 
 When pages are allocated the free list at the requested order level is checked -
-if a free chunk of memory at the right order can be found then that is returned
-otherwise the order levels above are checked until an available chunk is
+if a compound page of memory at the right order can be found then that is returned
+otherwise the order levels above are checked until an available compound page is
 located. This is then split until memory of the order required is obtained and
 this is returned.
 
-As a consequence of this at least 1 additional chunk is left at each level above
-the allocation meaning that future allocations can be performed more
+As a consequence of this at least 1 additional compound page is left at each
+level above the allocation meaning that future allocations can be performed more
 efficiently. It also ensures that memory is divided according to need (and
 coalesced again as soon as memory at any given order is no longer required).
 
@@ -1227,3 +1272,11 @@ function performing page allocation.
 [set_pageblock_migratetype]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/page_alloc.c#L549
 [set_pfnblock_flags_mask]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/page_alloc.c#L519
 [memmap_init_zone]:https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/mm/page_alloc.c#L6120
+[compound_page_dtors]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L311
+[free_compound_page]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L665
+[compound_order]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/mm.h#L919
+[destroy_compound_page]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/mm.h#L913
+[set_compound_page_dtor]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/mm.h#L906
+[prep_compound_page]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L671
+[set_compound_head]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/page-flags.h#L572
+[set_compound_order]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/mm.h#L949
