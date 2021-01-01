@@ -48,6 +48,8 @@
 
 * 'atomic reserves' for `GFP_ATOMIC`.
 
+* OOM reserves
+
 ## virt_layout
 
 ```
