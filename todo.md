@@ -36,6 +36,8 @@
 
 * per-cpu pages - `free_the_page()` etc.
 
+* `compaction_capture()`.
+
 ## virt_layout
 
 ```
