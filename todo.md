@@ -20,11 +20,9 @@
 
 * CoW
 
-* sparse mem sections.
-
 * file-backed memory.
 
-### Questions
+* per-cpu pages
 
 * `ioremap()` :)
 
@@ -34,11 +32,9 @@
 
 * `fpi_flags`, gfp flags.
 
-* free lists
-
-* per-cpu pages
-
 * `head_compound_pincount()` etc.
+
+* `shrink_lruvec()` and swapping. https://linux-mm.org/Swapout
 
 ## virt_layout
 
