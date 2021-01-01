@@ -1299,6 +1299,17 @@ done_merging:
 }
 ```
 
+The core of what's going on is straightforward - we find the buddy, check if
+it's available (via [page_is_buddy()][page_is_buddy]), if so we remove it from
+the free list. Note that it checks to ensure that the zone is the same in the
+case of both and returns false if not.
+
+The code then determines the combined PFN, i.e. the PFN of the now-merged
+page which clears the `1 << order` bit thus aligning to the new order.
+
+Finally when we're done merging the page is set up as a buddy page of the
+correct order and added to the zone/order/migratetype freelist.
+
 ### Page allocation
 
 The [__alloc_pages_nodemask()][__alloc_pages_nodemask] function is the core
