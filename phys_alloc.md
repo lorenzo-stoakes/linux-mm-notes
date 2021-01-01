@@ -1275,13 +1275,9 @@ static inline void __free_one_page(struct page *page,
 {
     unsigned long buddy_pfn;
     unsigned long combined_pfn;
-    unsigned int max_order;
     struct page *buddy;
 
-    max_order = min_t(unsigned int, MAX_ORDER - 1, pageblock_order);
-
-continue_merging:
-    while (order < max_order) {
+    while (order < MAX_ORDER - 1) {
         buddy_pfn = __find_buddy_pfn(pfn, order);
         buddy = page + (buddy_pfn - pfn);
 
@@ -1294,10 +1290,6 @@ continue_merging:
         page = page + (combined_pfn - pfn);
         pfn = combined_pfn;
         order++;
-    }
-    if (order < MAX_ORDER - 1) {
-        max_order = order + 1;
-        goto continue_merging;
     }
 
 done_merging:
