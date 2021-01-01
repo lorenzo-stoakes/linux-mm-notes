@@ -1345,3 +1345,4 @@ function performing page allocation.
 [move_to_free_list]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L921
 [per_cpu_pages]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/mmzone.h#L320
 [per_cpu_pageset]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/mmzone.h#L329
+[pageblock_bits]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/pageblock-flags.h#L18
