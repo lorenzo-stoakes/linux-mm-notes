@@ -1310,6 +1310,64 @@ page which clears the `1 << order` bit thus aligning to the new order.
 Finally when we're done merging the page is set up as a buddy page of the
 correct order and added to the zone/order/migratetype freelist.
 
+### GFP flags
+
+The Get Free Pages (GFP) flags provide information on the type of allocation
+that is required from the buddy allocator (note am excluding high memory
+references as not relevant in x86-64):
+
+| Flag                 | Category  | Description                                                     |
+|----------------------|-----------|-----------------------------------------------------------------|
+| __GFP_DMA            | Zone      | Indicates DMA zone                                              |
+| __GFP_DMA32          | Zone      | Indicates DMA32 zone                                            |
+| __GFP_MOVABLE        | Zone      | Indicates movable zone if present or otherwise indicate movable |
+| GFP_ZONEMASK         | Zone      | Mask for zones                                                  |
+| __GFP_RECLAIMABLE    | Mobility  | Used for slab allocations - indicates shrinkers can free        |
+| __GFP_WRITE          | Mobility  | Hint that page is likely to get dirtied                         |
+| __GFP_HARDWALL       | Mobility  | Enforces cpuset memory allocation policy                        |
+| __GFP_THISNODE       | Mobility  | FORCES the allocation to be on this node                        |
+| __GFP_ACCOUNT        | Mobility  | Account to kmemcg (cgroup-specific)                             |
+| __GFP_ATOMIC         | Watermark | Cannot reclaim or sleep and allocation is high priority         |
+| __GFP_MEMALLOC       | Watermark | Access ALL memory (have to be careful with this)                |
+| __GFP_NOMEMALLOC     | Watermark | Forbid access to emergency reserves (overrides __GFP_MEMALLOC)  |
+| __GFP_IO             | Reclaim   | Can start physical I/O                                          |
+| __GFP_FS             | Reclaim   | Can call down to low-level FS                                   |
+| __GFP_DIRECT_RECLAIM | Reclaim   | Can enter direct reclaim                                        |
+| __GFP_KSWAPD_RECLAIM | Reclaim   | Can wake kswapd at low watermark                                |
+| __GFP_RECLAIM        | Reclaim   | `__GFP_DIRECT_RECLAIM` + `__GFP_KSWAPD_RECLAIM`                 |
+| __GFP_RETRY_MAYFAIL  | Reclaim   | Will retry if progress, but might fail. Won't OOM               |
+| __GFP_NOFAIL         | Reclaim   | Failures aren't tolerated, will block indefinitely              |
+| __GFP_NORETRY        | Reclaim   | Will try only very lightweight reclaim, no OOM                  |
+| __GFP_NOWARN         | Action    | Suppress allocation failure reports                             |
+| __GFP_COMP           | Action    | Address compound page metadata                                  |
+| __GFP_ZERO           | Action    | Return zeroed page                                              |
+| __GFP_NOLOCKDEP      | Action    | Disable lockdep for GFP context tracking                        |
+
+There are a number of aggregate GFP flags also:
+
+| Flag                | Aggregated flags                                  | Description                                          |
+|---------------------|---------------------------------------------------|------------------------------------------------------|
+| GFP_ATOMIC          | __GFP_ATOMIC, __GFP_KSWAPD_RECLAIM                | Cannot sleep, alloc must succeed, watermarks reduced |
+| GFP_KERNEL          | __GFP_RECLAIM, __GFP_IO, __GFP_FS                 | Kernel-internal allocations                          |
+| GFP_KERNEL_ACCOUNT  | GFP_KERNEL, __GFP_ACCOUNT                         | Account to kmemcg (cgroups)                          |
+| GFP_NOWAIT          | __GFP_KSWAPD_RECLAIM                              | Cannot stall for direct reclaim, I/O, fs callback    |
+| GFP_NOIO            | __GFP_RECLAIM                                     | Use direct reclaim without I/O                       |
+| GFP_NOFS            | __GFP_RECLAIM, __GFP_IO                           | Use direct reclaim without FS interfaces             |
+| GFP_USER            | __GFP_RECLAIM, __GFP_IO, __GFP_FS, __GFP_HARDWALL | User allocations that kernel/hw also needs access to |
+| GFP_DMA             | __GFP_DMA                                         | Use DMA zone                                         |
+| GFP_DMA32           | __GFP_DMA32                                       | Use DMA32 zone                                       |
+| GFP_TRANSHUGE_LIGHT | __GFP_COMP, __GFP_NOMEMALLOC, __GFP_NOWARN        | Also masks out `__GFP_RECLAIM`. THP without reclaim  |
+| GFP_TRANSHUGE       | GFP_TRANSHUGE_LIGHT, __GFP_DIRECT_RECLAIM         | THP with reclaim                                     |
+
+There are a number of helper functions for GFP flags:
+
+| Function                                             | Description                                        |
+|------------------------------------------------------|----------------------------------------------------|
+| [gfp_migratetype()][gfp_migratetype]                 | Converts GFP to migrate types                      |
+| [gfpflags_allow_blocking()][gfpflags_allow_blocking] | Determines if blocking (direct reclaim) is allowed |
+| [gfpflags_normal_context()][gfpflags_normal_context] | Is this a normal sleepable context?                |
+| [gfp_zone()][gfp_zone]                               | Get highest allocatable zone                       |
+
 ### Page allocation
 
 The [__alloc_pages_nodemask()][__alloc_pages_nodemask] function is the core
@@ -1398,3 +1456,9 @@ TBD
 [per_cpu_pages]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/mmzone.h#L320
 [per_cpu_pageset]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/mmzone.h#L329
 [pageblock_bits]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/pageblock-flags.h#L18
+[gfp.h]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/gfp.h
+[gfp_migratetype]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/gfp.h#L317
+[gfpflags_allow_blocking]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/gfp.h#L332
+[gfpflags_normal_context]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/gfp.h#L354
+[gfp_zone]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/gfp.h#L450
+[gfp_zonelist]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/gfp.h#L468
