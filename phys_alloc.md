@@ -1175,15 +1175,17 @@ coalesced again as soon as memory at any given order is no longer required).
 
 ### Buddy pages
 
-[struct page][page]s are marked as present in the buddy allocator via the
-`PageBuddy()` flag and set as such via [set_buddy_order()][set_buddy_order]
-(this sets the order and marks the page as `PageBuddy()`). The page order is
-stored in the `private` field of the `struct page`. [buddy_order()][buddy_order]
-retrieves the order.
+[struct page][page]s are marked as present and available in the buddy allocator
+via the `PageBuddy()` flag and set as such via
+[set_buddy_order()][set_buddy_order] (this sets the order and marks the page as
+`PageBuddy()`). The page order is stored in the `private` field of the `struct
+page`. [buddy_order()][buddy_order] retrieves the order.
 
 The helper function [page_is_buddy()][page_is_buddy] checks whether a page is in
 the buddy allocator at the specified order (to simply check whether a page is in
 the buddy allocator you can use `PageBuddy()` directly).
+
+Once a buddy allocator page is allocated, `PageBuddy()` will evaluate false.
 
 ### Free lists
 
@@ -1205,6 +1207,10 @@ Pages are added to the free list via [add_to_free_list()][add_to_free_list] and
 to be added to the front or rear of the list respectively. They are removed via
 [del_page_from_free_list()][del_page_from_free_list]. Pages are moved from one
 free list to another via [move_to_free_list()][move_to_free_list].
+
+`del_page_from_free_list()` additionally removes the `PageBuddy()` flag and
+clears the buddy order (e.g. `page->private`). A page marked as a buddy
+indicates it is both in the buddy allocator _and_ available for allocation.
 
 Pages are threaded through the free lists via the `lru` field of [struct
 page][page].
