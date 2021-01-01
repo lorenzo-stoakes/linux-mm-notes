@@ -1368,12 +1368,131 @@ There are a number of helper functions for GFP flags:
 | [gfpflags_normal_context()][gfpflags_normal_context] | Is this a normal sleepable context?                |
 | [gfp_zone()][gfp_zone]                               | Get highest allocatable zone                       |
 
+### Alloc flags
+
+GFP flags and other context are used to determine a set of additional allocation flags:
+
+| Flag                | Description                                 |
+|---------------------|---------------------------------------------|
+| ALLOC_WMARK_MIN     | Check allocation against minimum watermark  |
+| ALLOC_WMARK_LOW     | Check allocation against low watermark      |
+| ALLOC_WMARK_HIGH    | Check allocation against high watermark     |
+| ALLOC_NO_WATERMARKS | Do not check watermarks                     |
+| ALLOC_OOM           | Use OOM victim reserves                     |
+| ALLOC_HARDER        | Try harder, e.g. reducing minimum watermark |
+| ALLOC_CPUSET        | Check for correct cpuset                    |
+| ALLOC_NOFRAGMENT    | Avoid mixing pageblock types                |
+| ALLOC_KSWAPD        | Allow waking of kswapd                      |
+
+The watermark flags are masked by [ALLOC_WMARK_MASK][ALLOC_WMARK_MASK].
+
+These are derived from [gfp_to_alloc_flags()][gfp_to_alloc_flags],
+[alloc_flags_nofragment()][alloc_flags_nofragment] and
+[prepare_alloc_pages()][prepare_alloc_pages].
+
 ### Page allocation
 
 The [__alloc_pages_nodemask()][__alloc_pages_nodemask] function is the core
-function performing page allocation.
+buddy allocator function performing page allocation ultimately invoked by other
+wrapper functions such as [__alloc_pages()][__alloc_pages],
+[alloc_pages()][alloc_pages], and [alloc_page()][alloc_page]:
 
-TBD
+```c
+struct page *
+__alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
+                            nodemask_t *nodemask)
+{
+    struct page *page;
+    unsigned int alloc_flags = ALLOC_WMARK_LOW;
+    gfp_t alloc_mask; /* The gfp_t that was actually used for allocation */
+    struct alloc_context ac = { };
+
+    /*
+     * There are several places where we assume that the order value is sane
+     * so bail out early if the request is out of bound.
+     */
+    if (unlikely(order >= MAX_ORDER)) {
+        WARN_ON_ONCE(!(gfp_mask & __GFP_NOWARN));
+        return NULL;
+    }
+
+    gfp_mask &= gfp_allowed_mask;
+    alloc_mask = gfp_mask;
+    if (!prepare_alloc_pages(gfp_mask, order, preferred_nid, nodemask, &ac, &alloc_mask, &alloc_flags))
+        return NULL;
+
+    /*
+     * Forbid the first pass from falling back to types that fragment
+     * memory until all local zones are considered.
+     */
+    alloc_flags |= alloc_flags_nofragment(ac.preferred_zoneref->zone, gfp_mask);
+
+    /* First allocation attempt */
+    page = get_page_from_freelist(alloc_mask, order, alloc_flags, &ac);
+    if (likely(page))
+        goto out;
+
+    /*
+     * Apply scoped allocation constraints. This is mainly about GFP_NOFS
+     * resp. GFP_NOIO which has to be inherited for all allocation requests
+     * from a particular context which has been marked by
+     * memalloc_no{fs,io}_{save,restore}.
+     */
+    alloc_mask = current_gfp_context(gfp_mask);
+    ac.spread_dirty_pages = false;
+
+    /*
+     * Restore the original nodemask if it was potentially replaced with
+     * &cpuset_current_mems_allowed to optimize the fast-path attempt.
+     */
+    ac.nodemask = nodemask;
+
+    page = __alloc_pages_slowpath(alloc_mask, order, &ac);
+
+out:
+
+    return page;
+}
+```
+
+Firstly the parameters are interpreted into a [struct
+alloc_context][alloc_context] in [prepare_alloc_pages()][prepare_alloc_pages]:
+
+```c
+struct alloc_context {
+    struct zonelist *zonelist;
+    nodemask_t *nodemask;
+    struct zoneref *preferred_zoneref;
+    int migratetype;
+
+    /*
+     * highest_zoneidx represents highest usable zone index of
+     * the allocation request. Due to the nature of the zone,
+     * memory on lower zone than the highest_zoneidx will be
+     * protected by lowmem_reserve[highest_zoneidx].
+     *
+     * highest_zoneidx is also used by reclaim/compaction to limit
+     * the target zone since higher zone than this index cannot be
+     * usable for this allocation request.
+     */
+    enum zone_type highest_zoneidx;
+    bool spread_dirty_pages;
+};
+```
+
+`spread_dirty_pages` is set when the `__GFP_WRITE` flag is set and dirty zone
+balancing is required.
+
+Next we attempt to specify allocation flags that avoid fragmentation via
+[alloc_flags_nofragment()][alloc_flags_nofragment] which essentially sets
+`ALLOC_NOFRAGMENT` if `ZONE_DMA32` is available and sets `ALLOC_KSWAPD` if
+`__GFP_KSWAPD_RECLAIM` is set.
+
+The first attempt at allocation is via
+[get_page_from_freelist()][get_page_from_freelist] which attempts to get the
+page we need from a freelist. If this fails then we have to try harder.
+
+TBC
 
 [numa]:https://en.wikipedia.org/wiki/Non-uniform_memory_access
 [buddy]:https://en.wikipedia.org/wiki/Buddy_memory_allocation
@@ -1462,3 +1581,12 @@ TBD
 [gfpflags_normal_context]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/gfp.h#L354
 [gfp_zone]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/gfp.h#L450
 [gfp_zonelist]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/gfp.h#L468
+[__alloc_pages]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/gfp.h#L509
+[alloc_pages]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/gfp.h#L545
+[alloc_page]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/gfp.h#L564
+[alloc_context]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/internal.h#L136
+[prepare_alloc_pages]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L4913
+[ALLOC_WMARK_MASK]:https://github.com/torvalds/linux/blob/eda809aef53426d044b519405d25d9da55319b76/mm/internal.h#L554
+[gfp_to_alloc_flags]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L4436
+[alloc_flags_nofragment]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L3776
+[get_page_from_freelist]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L3826
