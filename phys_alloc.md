@@ -631,6 +631,7 @@ in `page-flags.h`:
 | MappingFlags     | mapping                      | -           | Own function                                        |
 | Anon             | mapping                      | -           | Own function                                        |
 | __Movable        | mapping                      | -           | Own function, __Page prefix                         |
+| Movable          | mapping                      | -           | Own function, implemented in compaction.c           |
 | Uptodate         | page                         | -           | Own function, memory barriers required, FS-specific |
 | Huge             | compound_head, compound_dtor | -           | Own function, only checks for hugetlbfs             |
 | HeadHuge         | flags, compound_dtor         | any         | Own function, only checks for hugetlbfs             |
