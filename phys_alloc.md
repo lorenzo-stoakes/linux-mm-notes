@@ -1252,6 +1252,11 @@ free_one_page()
 __free_one_page()
 ```
 
+This allows the kernel to fairly elegantly add all memory by using the buddy
+free mechanism.
+
+#### __free_one_page()
+
 This ultimately results in the core buddy allocator free function
 [__free_one_page()][__free_one_page] being invoked (this page might be compound,
 i.e. comprising multiple [struct page][page]s, things get confusing).
