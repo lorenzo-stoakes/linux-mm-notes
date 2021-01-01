@@ -1392,10 +1392,10 @@ These are derived from [gfp_to_alloc_flags()][gfp_to_alloc_flags],
 
 ### Page allocation
 
-The [__alloc_pages_nodemask()][__alloc_pages_nodemask] function is the core
-buddy allocator function performing page allocation ultimately invoked by other
-wrapper functions such as [__alloc_pages()][__alloc_pages],
-[alloc_pages()][alloc_pages], and [alloc_page()][alloc_page]:
+[__alloc_pages_nodemask()][__alloc_pages_nodemask] is the core buddy allocator
+function ultimately invoked by other wrappers such as
+[__alloc_pages()][__alloc_pages], [alloc_pages()][alloc_pages], and
+[alloc_page()][alloc_page]:
 
 ```c
 struct page *
