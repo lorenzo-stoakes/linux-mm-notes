@@ -1182,8 +1182,8 @@ via the `PageBuddy()` flag and set as such via
 page`. [buddy_order()][buddy_order] retrieves the order.
 
 The helper function [page_is_buddy()][page_is_buddy] checks whether a page is in
-the buddy allocator at the specified order (to simply check whether a page is in
-the buddy allocator you can use `PageBuddy()` directly).
+the buddy allocator at the specified order and zone (to simply check whether a
+page is in the buddy allocator you can use `PageBuddy()` directly).
 
 Once a buddy allocator page is allocated, `PageBuddy()` will evaluate false.
 
