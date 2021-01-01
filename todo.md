@@ -40,6 +40,8 @@
 
 * isolation migratetype, esp. as referenced in `__free_one_page()`.
 
+* ref counts on pages.
+
 ## virt_layout
 
 ```
