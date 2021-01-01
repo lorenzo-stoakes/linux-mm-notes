@@ -42,6 +42,12 @@
 
 * ref counts on pages.
 
+* fair zone allocation policy (`__GFP_WRITE` hints to spread across zones).
+
+* `kswapd`.
+
+* 'atomic reserves' for `GFP_ATOMIC`.
+
 ## virt_layout
 
 ```
