@@ -38,6 +38,8 @@
 
 * `compaction_capture()`.
 
+* isolation migratetype, esp. as referenced in `__free_one_page()`.
+
 ## virt_layout
 
 ```
