@@ -22,8 +22,6 @@
 
 * file-backed memory.
 
-* per-cpu pages
-
 * `ioremap()` :)
 
 * hugetlbfs vs. transparent huge pages.
@@ -35,6 +33,8 @@
 * `head_compound_pincount()` etc.
 
 * `shrink_lruvec()` and swapping. https://linux-mm.org/Swapout
+
+* per-cpu pages - `free_the_page()` etc.
 
 ## virt_layout
 

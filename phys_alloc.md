@@ -1172,6 +1172,57 @@ level above the allocation meaning that future allocations can be performed more
 efficiently. It also ensures that memory is divided according to need (and
 coalesced again as soon as memory at any given order is no longer required).
 
+### Buddy pages
+
+[struct page][page]s are marked as present in the buddy allocator via the
+`PageBuddy()` flag and set as such via [set_buddy_order()][set_buddy_order]
+(this sets the order and marks the page as `PageBuddy()`). The page order is
+stored in the `private` field of the `struct page`. [buddy_order()][buddy_order]
+retrieves the order.
+
+The helper function [page_is_buddy()][page_is_buddy] checks whether a page is in
+the buddy allocator at the specified order (to simply check whether a page is in
+the buddy allocator you can use `PageBuddy()` directly).
+
+### Free lists
+
+Lists of free pages are stored per-zone, per-order, per-migrate-type. The lists
+are stored in [struct zone][zone] in the `free_area[MAX_ORDER]` field.
+
+Each zone/order's list of free areas are stored in [struct
+free_area][free_area]s:
+
+```c
+struct free_area {
+    struct list_head    free_list[MIGRATE_TYPES];
+    unsigned long       nr_free;
+};
+```
+
+Pages are added to the free list via [add_to_free_list()][add_to_free_list] and
+[add_to_free_list_tail()][add_to_free_list_tail] depending on whether they ought
+to be added to the front or rear of the list respectively. They are removed via
+[del_page_from_free_list()][del_page_from_free_list]. Pages are moved from one
+free list to another via [move_to_free_list()][move_to_free_list].
+
+Pages are threaded through the free lists via the `lru` field of [struct
+page][page].
+
+There is also a per-cpu cache (PCP) for order-0 pages stored in [struct
+per_cpu_pages][per_cpu_pages] and [struct per_cpu_pageset][per_cpu_pageset]
+stored in `struct zone`'s `pageset` field.
+
+### Free Page Internal (FPI) flags
+
+When allocating non-PCP physical pages low-level flags can be passed to change
+allocation behaviour:
+
+* `FPI_NONE` - No special handling.
+* `FPI_SKIP_REPORT_NOTIFY` - Used as part of the `CONFIG_PAGE_REPORTING` feature
+  to indicate that report notification should be skipped.
+* `FPI_TO_TAIL` - Specifically forces the appending of pages to the free list
+  tail, used primarily for memory onlineing.
+
 ### Allocator initialisation
 
 Once the kernel has set up the [direct physical mapping][direct-phys-mapping],
@@ -1195,11 +1246,8 @@ __free_one_page()
 ```
 
 This ultimately results in the core buddy allocator free function
-[__free_one_page()][__free_one_page] being invoked. This is somewhat poorly
-named as it accepts an order parameter and thus frees pages at the specified
-order (there seems generally to be some confusing use of page as in a page of
-memory or `struct page` vs. a series of physically contiguous pages at a
-specified order).
+[__free_one_page()][__free_one_page] being invoked (this page might be compound,
+i.e. comprising multiple [struct page][page]s, things get confusing).
 
 Looking at the function signature:
 
@@ -1287,3 +1335,13 @@ function performing page allocation.
 [prep_new_page]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L2301
 [__alloc_pages_direct_compact]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L4132
 [get_page_from_freelist]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L3826
+[set_buddy_order]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L806
+[page_is_buddy]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L825
+[buddy_order]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/internal.h#L280
+[free_area]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/mmzone.h#L96
+[add_to_free_list]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L897
+[add_to_free_list_tail]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L907
+[del_page_from_free_list]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L929
+[move_to_free_list]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L921
+[per_cpu_pages]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/mmzone.h#L320
+[per_cpu_pageset]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/mmzone.h#L329
