@@ -1250,21 +1250,58 @@ This ultimately results in the core buddy allocator free function
 [__free_one_page()][__free_one_page] being invoked (this page might be compound,
 i.e. comprising multiple [struct page][page]s, things get confusing).
 
-Looking at the function signature:
+I've pared down the function, removed the compaction logic (this will be covered
+in a subsequent section), isolation pageblock, bug checks and
+non-x86-64-relevant parts and assumed that the `FPI_TO_TAIL` FPI flag is
+set. This allows us to focus on the core logic:
+
 
 ```c
 static inline void __free_one_page(struct page *page,
         unsigned long pfn,
         struct zone *zone, unsigned int order,
         int migratetype, fpi_t fpi_flags)
-```
+{
+    unsigned long buddy_pfn;
+    unsigned long combined_pfn;
+    unsigned int max_order;
+    struct page *buddy;
 
-TBD
+    max_order = min_t(unsigned int, MAX_ORDER - 1, pageblock_order);
+
+continue_merging:
+    while (order < max_order) {
+        buddy_pfn = __find_buddy_pfn(pfn, order);
+        buddy = page + (buddy_pfn - pfn);
+
+        if (!page_is_buddy(page, buddy, order))
+            goto done_merging;
+
+        del_page_from_free_list(buddy, zone, order);
+
+        combined_pfn = buddy_pfn & pfn;
+        page = page + (combined_pfn - pfn);
+        pfn = combined_pfn;
+        order++;
+    }
+    if (order < MAX_ORDER - 1) {
+        max_order = order + 1;
+        goto continue_merging;
+    }
+
+done_merging:
+    set_buddy_order(page, order);
+
+    add_to_free_list_tail(page, zone, order, migratetype);
+}
+```
 
 ### Page allocation
 
 The [__alloc_pages_nodemask()][__alloc_pages_nodemask] function is the core
 function performing page allocation.
+
+TBD
 
 [numa]:https://en.wikipedia.org/wiki/Non-uniform_memory_access
 [buddy]:https://en.wikipedia.org/wiki/Buddy_memory_allocation
