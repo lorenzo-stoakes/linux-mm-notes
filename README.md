@@ -8,6 +8,9 @@
 * [Physical page allocation][phys_alloc] - NUMA nodes, zones, and the physical
   page (buddy) allocator.
 
+* [Memory reclaim][reclaim] - Memory reclaim, compaction and OOM - i.e. how the
+  kernel finds more memory when zones drop below low and minimum thresholds.
+
 ## Descriptions
 
 This is a set of notes on the linux memory management subsystem.
@@ -27,3 +30,4 @@ research these kinds of things.
 
 [virt_layout]:virt_layout.md
 [phys_alloc]:phys_alloc.md
+[reclaim]:reclaim.md
