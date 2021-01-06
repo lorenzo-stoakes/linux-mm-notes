@@ -48,7 +48,11 @@
 
 * 'atomic reserves' for `GFP_ATOMIC`.
 
-* OOM reserves
+* OOM reserves.
+
+* watermark boosting.
+
+* order > 0 and `__GFP_COMP` not set?
 
 ## virt_layout
 
