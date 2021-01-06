@@ -269,6 +269,68 @@ The low watermark is equal to the minimum + scale factor * zone managed pages,
 and the high watermark is equal to the minimum + 2 * scale factor * zone managed
 pages.
 
+Zone watermarks are checked via [zone_watermark_fast()][zone_watermark_fast] for
+the fast path (which simply checks the free pages zone memory statistic) or
+ultimately [__zone_watermark_ok()][__zone_watermark_ok] if this falls back or if
+the fast path is not being invoked. There are some nuances here:
+
+```c
+bool __zone_watermark_ok(struct zone *z, unsigned int order, unsigned long mark,
+             int highest_zoneidx, unsigned int alloc_flags,
+             long free_pages)
+{
+    long min = mark;
+    int o;
+    const bool alloc_harder = (alloc_flags & (ALLOC_HARDER|ALLOC_OOM));
+
+    /* free_pages may go negative - that's OK */
+    free_pages -= __zone_watermark_unusable_free(z, order, alloc_flags);
+
+    if (unlikely(alloc_harder)) {
+        /*
+         * OOM victims can try even harder than normal ALLOC_HARDER
+         * users on the grounds that it's definitely going to be in
+         * the exit path shortly and free memory. Any allocation it
+         * makes during the free path will be small and short-lived.
+         */
+        if (alloc_flags & ALLOC_OOM)
+            min -= min / 2;
+        else
+            min -= min / 4;
+    }
+
+    /*
+     * Check watermarks for an order-0 allocation request. If these
+     * are not met, then a high-order request also cannot go ahead
+     * even if a suitable page happened to be free.
+     */
+    if (free_pages <= min + z->lowmem_reserve[highest_zoneidx])
+        return false;
+
+    /* If this is an order-0 request then the watermark is fine */
+    if (!order)
+        return true;
+
+    /* For a high-order request, check at least one suitable page is free */
+    for (o = order; o < MAX_ORDER; o++) {
+        struct free_area *area = &z->free_area[o];
+        int mt;
+
+        if (!area->nr_free)
+            continue;
+
+        for (mt = 0; mt < MIGRATE_PCPTYPES; mt++) {
+            if (!free_area_empty(area, mt))
+                return true;
+        }
+
+        if (alloc_harder && !free_area_empty(area, MIGRATE_HIGHATOMIC))
+            return true;
+    }
+    return false;
+}
+```
+
 ## Zone page stats
 
 Each zone has 'spanned', 'present', and 'managed' page counts (viewable from
@@ -1643,3 +1705,4 @@ TBC
 [rmqueue]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L3459
 [prep_new_page]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L2301
 [reclaim]:/reclaim.md
+[__zone_watermark_ok]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L3631
