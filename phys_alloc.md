@@ -1187,7 +1187,7 @@ page is in the buddy allocator you can use `PageBuddy()` directly).
 
 Once a buddy allocator page is allocated, `PageBuddy()` will evaluate false.
 
-### Free lists
+## Free lists
 
 Lists of free pages are stored per-zone, per-order, per-migrate-type. The lists
 are stored in [struct zone][zone] in the `free_area[MAX_ORDER]` field.
@@ -1230,7 +1230,7 @@ allocation behaviour:
 * `FPI_TO_TAIL` - Specifically forces the appending of pages to the free list
   tail, used primarily for memory onlineing.
 
-### Allocator initialisation
+## Allocator initialisation
 
 Once the kernel has set up the [direct physical mapping][direct-phys-mapping],
 the [struct page][page]s and the vmemmap to the struct pages, all of the
@@ -1310,7 +1310,7 @@ page which clears the `1 << order` bit thus aligning to the new order.
 Finally when we're done merging the page is set up as a buddy page of the
 correct order and added to the zone/order/migratetype freelist.
 
-### GFP flags
+## GFP flags
 
 The Get Free Pages (GFP) flags provide information on the type of allocation
 that is required from the buddy allocator (note am excluding high memory
@@ -1368,7 +1368,7 @@ There are a number of helper functions for GFP flags:
 | [gfpflags_normal_context()][gfpflags_normal_context] | Is this a normal sleepable context?                |
 | [gfp_zone()][gfp_zone]                               | Get highest allocatable zone                       |
 
-### Alloc flags
+## Alloc flags
 
 GFP flags and other context are used to determine a set of additional allocation flags:
 
@@ -1390,7 +1390,7 @@ These are derived from [gfp_to_alloc_flags()][gfp_to_alloc_flags],
 [alloc_flags_nofragment()][alloc_flags_nofragment] and
 [prepare_alloc_pages()][prepare_alloc_pages].
 
-### Page allocation
+## Page allocation
 
 [__alloc_pages_nodemask()][__alloc_pages_nodemask] is the core buddy allocator
 function ultimately invoked by other wrappers such as
