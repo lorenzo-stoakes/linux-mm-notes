@@ -1601,6 +1601,13 @@ The fast path is `get_page_from_freelist()`:
 The [rmqueue()][rmqueue] function is where memory is actually allocated from the
 free lists.
 
+For the most common case of order-0 allocations the per-cpu pages (pcplists) are
+used - these cache order-0 free pages on separate lists per-CPU and migrate-type.
+
+TBC
+
+#### prep_new_page()
+
 TBC
 
 [numa]:https://en.wikipedia.org/wiki/Non-uniform_memory_access
