@@ -1602,13 +1602,71 @@ The [rmqueue()][rmqueue] function is where memory is actually allocated from the
 free lists.
 
 For the most common case of order-0 allocations the per-cpu pages (pcplists) are
-used - these cache order-0 free pages on separate lists per-CPU and migrate-type.
+used - these cache order-0 free pages on separate lists per-CPU and
+migrate-type. This is done in [rmqueue_pcplist()][rmqueue_pcplist] which in turn
+invokes [__rmqueue_pcplist()][__rmqueue_pcplist].
 
-TBC
+The number of pages on each per-CPU list is determined by the zone batch
+size. This is typically calculated by [zone_batchsize()][zone_batchsize] which
+assigns roughly 1/1024 of the zones' managed pages. This can also be configured
+via the `vm.percpu_pagelist_fraction` tunable - if set to 0 (which it defaults
+to) then the calculated value is used.
+
+If the pcplist is empty then it is refilled using
+[rmqueue_bulk()][rmqueue_bulk].
+
+If the page is of order 1 or higher and the `ALLOC_HARDER` alloc flag is set
+then [__rmqueue_smallest()][__rmqueue_smallest] is invoked. This iterates
+through available free lists in the zone trying to find the smallest order that
+can fulfil the request.
+
+When a page is found that is larger than needed, [expand()][expand] is invoked
+to subdivide it into lower-order pages, splitting them down as per the buddy
+allocator algorithm.
+
+If `rmqueue()` still can't find a page then [__rmqueue()][__rmqueue] is
+invoked. This is also ultimately invoked by `rmqueue_bulk()`.
+
+This essentially tries to invoke `__rmqueue_smallest()`, invoking
+[__rmqueue_fallback()][__rmqueue_fallback] for each fallback migrate type which
+in turn invokes [find_suitable_fallback()][find_suitable_fallback] to determine
+what each migrate type should fall back to:
+
+* `MIGRATE_UNMOVABLE` - falls back to `MIGRATE_RECLAIMABLE`, `MIGRATE_MOVABLE`.
+* `MIGRATE_MOVABLE` - falls back to `MIGRATE_RECLAIMABLE`, `MIGRATE_UNMOVABLE`.
+* `MIGRATE_RECLAIMABLE` - falls back to  `MIGRATE_UNMOVABLE`, `MIGRATE_MOVABLE`.
+
+It goes through each in this order moving to the next if there is no memory of
+the previous migrate type available.
+
+Whether we try to 'steal' more pages than we strictly need is determined by
+`find_suitable_fallback()` which invokes
+[can_steal_fallback()][can_steal_fallback]. This is well described by the
+function's comment:
+
+```c
+/*
+ * When we are falling back to another migratetype during allocation, try to
+ * steal extra free pages from the same pageblocks to satisfy further
+ * allocations, instead of polluting multiple pageblocks.
+ *
+ * If we are stealing a relatively large buddy page, it is likely there will
+ * be more free pages in the pageblock, so try to steal them all. For
+ * reclaimable and unmovable allocations, we steal regardless of page size,
+ * as fragmentation caused by those allocations polluting movable pageblocks
+ * is worse than movable allocations stealing from unmovable and reclaimable
+ * pageblocks.
+ */
+```
 
 #### prep_new_page()
 
-TBC
+When a page is allocated it is configured by [prep_new_page()][prep_new_page]
+which invokes [post_alloc_hook()][post_alloc_hook],
+[prep_compound_page()][prep_compound_page] for compound pages and marks the page
+as one allocated under `PF_MEMALLOC` (a task flag used to indicate allocation is
+happening during existing memory allocation in order to avoid too much
+recursion) when `ALLOC_NO_WATERMARKS` is set.
 
 [numa]:https://en.wikipedia.org/wiki/Non-uniform_memory_access
 [buddy]:https://en.wikipedia.org/wiki/Buddy_memory_allocation
@@ -1677,7 +1735,6 @@ TBC
 [prep_compound_page]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L671
 [set_compound_head]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/page-flags.h#L572
 [set_compound_order]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/include/linux/mm.h#L949
-[prep_new_page]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L2301
 [__alloc_pages_direct_compact]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L4132
 [get_page_from_freelist]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L3826
 [set_buddy_order]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L806
@@ -1714,3 +1771,14 @@ TBC
 [prep_new_page]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L2301
 [reclaim]:/reclaim.md
 [__zone_watermark_ok]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L3631
+[rmqueue_pcplist]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L3434
+[__rmqueue_pcplist]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L3409
+[rmqueue_bulk]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L2899
+[zone_batchsize]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L6277
+[__rmqueue_smallest]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L2326
+[expand]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L2186
+[__rmqueue]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L2860
+[__rmqueue_fallback]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L2778
+[find_suitable_fallback]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L2618
+[can_steal_fallback]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L2470
+[post_alloc_hook]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L2285
