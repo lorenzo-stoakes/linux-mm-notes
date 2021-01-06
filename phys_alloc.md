@@ -270,9 +270,10 @@ and the high watermark is equal to the minimum + 2 * scale factor * zone managed
 pages.
 
 Zone watermarks are checked via [zone_watermark_fast()][zone_watermark_fast] for
-the fast path (which simply checks the free pages zone memory statistic) or
-ultimately [__zone_watermark_ok()][__zone_watermark_ok] if this falls back or if
-the fast path is not being invoked. There are some nuances here:
+the fast path (which simply checks the free pages zone memory statistic for 0
+order pages) or ultimately [__zone_watermark_ok()][__zone_watermark_ok] if this
+falls back or if the fast path is not being invoked. There are some nuances
+here:
 
 ```c
 bool __zone_watermark_ok(struct zone *z, unsigned int order, unsigned long mark,
