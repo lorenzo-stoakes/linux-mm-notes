@@ -1488,9 +1488,55 @@ Next we attempt to specify allocation flags that avoid fragmentation via
 `ALLOC_NOFRAGMENT` if `ZONE_DMA32` is available and sets `ALLOC_KSWAPD` if
 `__GFP_KSWAPD_RECLAIM` is set.
 
+### get_page_from_freelist()
+
 The first attempt at allocation is via
 [get_page_from_freelist()][get_page_from_freelist] which attempts to get the
-page we need from a freelist. If this fails then we have to try harder.
+page we need from a freelist. If this fails then we have to try harder by
+invoking [__alloc_pages_slowpath()][__alloc_pages_slowpath] - this is covered in
+the [memory reclaim][reclaim] section.
+
+The fast path is `get_page_from_freelist()`:
+
+1. Search through zones within the permitted nodes looking for one to allocate
+   from.
+
+2. If [CPU sets][cpusets] are enabled, check to ensure that allocation in the
+   zone is permitted (which ultimately simply checks that the node is
+   permitted).
+
+3. If spreading dirty pages across nodes, skip out any nodes that already exceed
+   the node dirty page limit.
+
+4. Check to see if the `ALLOC_NOFRAGMENT` flag has been set and we are examining
+   a zone in a non-local node (except if it is the preferred zone) - if so,
+   retry clearing the fragmentation flag. Locality matters more than
+   fragmentation.
+
+5. Check to ensure that the specified watermark is not violated via
+   [zone_watermark_fast()][zone_watermark_fast].
+
+6. If the watermark fails and if the `ALLOC_NO_WATERMARKS` flag is set proceed
+   anyway.
+
+7. If the watermark fails and reclaim is not permitted then try the next zone.
+
+8. If the watermark fails otherwise, attempt reclaim via
+   [node_reclaim()][node_reclaim] (reclaim is discussed in a separate section).
+
+9. At this point we have found a zone to allocate from, grab it via
+   [rmqueue()][rmqueue] and prep it in [prep_new_page()][prep_new_page].
+
+10. If the allocation is for a higher order page and `ALLOC_HARDER` is set then
+    reserve a pageblock for `MIGRATE_HIGHATOMIC` usage.
+
+11. If the allocation failed but `ALLOC_NOFRAGMENT` was set, then try again with
+    it unset.
+
+#### rmqueue()
+
+The [rmqueue()][rmqueue] function is where memory is actually allocated from the
+free lists.
 
 TBC
 
@@ -1590,3 +1636,10 @@ TBC
 [gfp_to_alloc_flags]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L4436
 [alloc_flags_nofragment]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L3776
 [get_page_from_freelist]:https://github.com/torvalds/linux/blob/f6e1ea19649216156576aeafa784e3b4cee45549/mm/page_alloc.c#L3826
+[__alloc_pages_slowpath]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L4654
+[cpusets]:https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/cgroup-v2.rst#cpuset
+[zone_watermark_fast]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L3702
+[node_reclaim]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/vmscan.c#L4214
+[rmqueue]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L3459
+[prep_new_page]:https://github.com/torvalds/linux/blob/71c061d2443814de15e177489d5cc00a4a253ef3/mm/page_alloc.c#L2301
+[reclaim]:/reclaim.md
