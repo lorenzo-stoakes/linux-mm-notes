@@ -54,6 +54,9 @@
 
 * order > 0 and `__GFP_COMP` not set?
 
+* It seems that userland page allocations never set the reclaimable flag - is
+  this definitely true?
+
 ## virt_layout
 
 ```
