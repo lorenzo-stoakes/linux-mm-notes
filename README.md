@@ -1,6 +1,6 @@
 # Linux Memory Management
 
-__IMPORTANT__: This repository is deprecated in favour of a new project to write
+**IMPORTANT**: This repository is deprecated in favour of a new project to write
 a book about the mm subsystem - I will be developing it (over a long period!) in
 the [mm-book repo](https://github.com/lorenzo-stoakes/mm-book). This will
 supercede this project and all future efforts to finally write something
