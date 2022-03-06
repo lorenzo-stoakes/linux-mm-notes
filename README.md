@@ -1,5 +1,11 @@
 # Linux Memory Management
 
+__IMPORTANT__: This repository is deprecated in favour of a new project to write
+a book about the mm subsystem - I will be developing it (over a long period!) in
+the [mm-book repo](https://github.com/lorenzo-stoakes/mm-book). This will
+supercede this project and all future efforts to finally write something
+comprehensive will be made over there.
+
 ## Contents
 
 * [Virtual memory layout][virt_layout] - x86-64 page table structure, virtual
