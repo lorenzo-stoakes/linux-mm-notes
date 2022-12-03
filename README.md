@@ -2,9 +2,9 @@
 
 **IMPORTANT**: This repository is deprecated in favour of a new project to write
 a book about the mm subsystem - I will be developing it (over a long period!)
-see my homepage [ljs.io](https://ljs.io) for updates. This will supercede this
-project and all future efforts to finally write something comprehensive will be
-made over there.
+see [linuxmemory.org](https://linuxmemory.org) for updates. This will supercede
+this project and all future efforts to finally write something comprehensive
+will be made over there.
 
 ## Contents
 
